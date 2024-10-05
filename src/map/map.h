@@ -75,6 +75,7 @@
 #define MAX_MEMORIAL_MAP 200	// メモリアルダンジョンマップ最大生成数
 #define MAX_CLOAKEDNPC 50	// クローキング状態NPC最大保存数
 #define MAX_STELLAR_MARKS 5 // 星の印の最大保存数
+#define MAX_SOULENERGY 15	// ソウルエナジー最大数
 
 #ifndef DEFAULT_AUTOSAVE_INTERVAL
 #define DEFAULT_AUTOSAVE_INTERVAL 60*1000
@@ -555,11 +556,12 @@ struct map_session_data {
 	struct pc_base_job s_class;
 
 	short weapontype1,weapontype2;	// ～WT_MAX
-	int paramb[6],paramc[6],parame[6],paramcard[6];
+	int paramb[12],paramc[12],parame[12],paramcard[12];
 	int hit,flee,flee2,aspd,amotion,dmotion;
 	int watk,watk2,atkmods[MAX_SIZE_FIX];
 	int fix_damage;
 	int def,def2,mdef,mdef2,critical,matk1,matk2;
+	int patk,smatk,res,mres,hplus,crate;
 	int atk_ele,def_ele,star,overrefine;
 	int castrate,fixcastrate,fixcastrate_,hprate,sprate,dsprate;
 	int addele[ELE_MAX],addrace[RCT_MAX],addenemy[EMY_MAX],addsize[MAX_SIZE_FIX];
@@ -736,6 +738,11 @@ struct map_session_data {
 		int timer[MAX_ELEMENTBALL];
 	} elementball;
 
+	struct {
+		short num;
+		int timer[MAX_SOULENERGY];
+	} soulenergy;
+
 	int reg_num;
 	struct script_reg *reg;
 	int regstr_num;
@@ -905,7 +912,6 @@ struct map_session_data {
 
 	int freeze_sp_slot;
 	int freeze_sp_skill[MAX_FREEZE_SPELL];
-	int overheat;			// 魔導ギア加熱度（暫定）
 	int shadowform_id;		// シャドウフォーム
 	int c_marker[3];		// クリムゾンマーカー
 	int stellar_mark[MAX_STELLAR_MARKS]; // 星の印
@@ -1280,7 +1286,7 @@ enum {
 
 	SP_POW=219,SP_STA,SP_WIS,SP_SPL,SP_CON,SP_CRT,	// 219-224
 	SP_PATK,SP_SMATK,SP_RES,SP_MRES,SP_HPLUS,SP_CRATE,	// 225-230
-	SP_T_STATUSPOINT,SP_AP,SP_MAXAP,	// 231-233
+	SP_TSTATUSPOINT,SP_AP,SP_MAXAP,	// 231-233
 	SP_UPOW=247,SP_USTA,SP_UWIS,SP_USPL,SP_UCON,SP_UCRT,	// 247-252
 
 	// globalreg save 500-

@@ -154,7 +154,6 @@ extern struct Battle_Config {
 	int mob_middle_boss_delay_rate;
 	int mob_mvp_boss_delay_rate;
 	int quest_skill_learn;
-	int quest_skill_reset;
 	int basic_skill_check;
 	int guild_emperium_check;
 	int guild_exp_limit;
@@ -591,7 +590,6 @@ extern struct Battle_Config {
 	int third_max_aspd;
 	int third_song_overlap;
 	int clif_fix_level;
-	int get_status_point_over_lv100;
 	int max_buyingstore_zeny;
 	int max_buyingstore_amount;
 	int allow_same_activeitem;
@@ -623,6 +621,21 @@ extern struct Battle_Config {
 	int enable_pet_autofeed;
 	int enable_hom_autofeed;
 	int homun_status_max;
+	int skill_unit_interval_limit;
+	int max_skillpoint_nv;
+	int max_skillpoint_1st;
+	int max_skillpoint_n2nd;
+	int max_skillpoint_n3rd;
+	int max_skillpoint_2nd;
+	int max_skillpoint_3rd;
+	int max_skillpoint_tk2nd;
+	int max_skillpoint_tk3rd;
+	int max_skillpoint_ex1st;
+	int max_skillpoint_ex2nd;
+	int max_skillpoint_snv;
+	int max_skillpoint_esnv;
+	int max_skillpoint_doram;
+	int pc_tstatus_max;
 } battle_config;
 
 int battle_config_read(const char *cfgName);

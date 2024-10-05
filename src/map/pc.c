@@ -69,16 +69,11 @@
 
 static atn_bignumber exp_table[22][MAX_LEVEL];
 
+int stpoint_table[MAX_LEVEL];
+int tstpoint_table[MAX_LEVEL];
+
 // 属性テーブル
 int attr_fix_table[MAX_ELE_LEVEL][ELE_MAX][ELE_MAX];
-
-// JOB TABLE
-//    NV,SM,MG,AC,AL,MC,TF,KN,PR,WZ,BS,HT,AS,CR,MO,SA,RG,AM,BA,DC,SNV,TK,SG,SL,GS,NJ,MB,DK,DA,RK,WL,RA,AB,NC,GC,LG,SO,MI,WA,SR,GN,SC,ESNV,KG,OB,RB,SU,SE,RE
-int max_job_table[PC_UPPER_MAX][PC_JOB_MAX] = {
-	{ 10,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,99,50,50,50,70,70,50,50,50,60,60,60,60,60,60,60,60,60,60,60,60,60,50,60,60,60,50,65,65 }, // 通常
-	{ 10,50,50,50,50,50,50,70,70,70,70,70,70,70,70,70,70,70,70,70,99,50,50,50,70,70,50,50,50,60,60,60,60,60,60,60,60,60,60,60,60,60,50,60,60,60,50,65,65 }, // 転生
-	{ 10,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,99,50,50,50,70,70,50,50,50,60,60,60,60,60,60,60,60,60,60,60,60,60,50,60,60,60,50,65,65 }, // 養子
-};
 
 static const unsigned int equip_pos[EQUIP_INDEX_MAX] = {
 	LOC_LACCESSORY,
@@ -130,6 +125,7 @@ static int pc_nightmare_drop(struct map_session_data *sd,short flag);
 static int pc_equiplookall(struct map_session_data *sd);
 static int pc_checkitemlimit(struct map_session_data *sd, int idx, unsigned int tick, unsigned int now, int first);
 static int pc_setitemlimit(struct map_session_data *sd);
+static int pc_calc_needskillpoint(struct map_session_data *sd, int class_level);
 
 
 /*==========================================
@@ -666,6 +662,124 @@ int pc_delelementball(struct map_session_data *sd, int count, int type)
 
 	if(!type)
 		clif_elementball(sd);
+
+	return 0;
+}
+
+/*==========================================
+ * ソウルエナジータイマー
+ *------------------------------------------
+ */
+static int pc_soulenergy_timer(int tid,unsigned int tick,int id,void *data)
+{
+	struct map_session_data *sd = map_id2sd(id);
+	int i;
+
+	if(sd == NULL)
+		return 1;
+
+	if(sd->soulenergy.timer[0] != tid) {
+		if(battle_config.error_log)
+			printf("soulenergy_timer %d != %d\n",sd->soulenergy.timer[0],tid);
+		return 0;
+	}
+	sd->soulenergy.timer[0] = -1;
+	for(i=1; i<sd->soulenergy.num; i++) {
+		sd->soulenergy.timer[i-1] = sd->soulenergy.timer[i];
+		sd->soulenergy.timer[i] = -1;
+	}
+	sd->soulenergy.num--;
+	if(sd->soulenergy.num < 0)
+		sd->soulenergy.num = 0;
+	clif_soulenergy(sd);
+
+	return 0;
+}
+
+/*==========================================
+ * ソウルエナジー追加
+ *------------------------------------------
+ */
+int pc_addsoulenergy(struct map_session_data *sd,int interval,int num)
+{
+	int max = 5;
+	int before;
+
+	nullpo_retr(0, sd);
+
+	/* ソウルエナジー研究 */
+	max += pc_checkskill(sd,SP_SOULENERGY) * 3;
+
+	if(max > MAX_SOULENERGY)
+		max = MAX_SOULENERGY;
+
+	if(sd->soulenergy.num < 0)
+		sd->soulenergy.num = 0;
+
+	before = sd->soulenergy.num;
+
+	if(max > 0) {
+		int i, j;
+		unsigned int tick = gettick();
+		for(i = num; i > 0; i--) {
+			if(sd->soulenergy.num >= max) {
+				if(sd->soulenergy.timer[0] != -1) {
+					delete_timer(sd->soulenergy.timer[0],pc_soulenergy_timer);
+					sd->soulenergy.timer[0] = -1;
+				}
+				for(j = 1; j < max; j++) {
+					sd->soulenergy.timer[j-1] = sd->soulenergy.timer[j];
+					sd->soulenergy.timer[j] = -1;
+				}
+			} else {
+				sd->soulenergy.num++;
+			}
+			sd->soulenergy.timer[sd->soulenergy.num-1] = add_timer(tick+interval+sd->soulenergy.num,pc_soulenergy_timer,sd->bl.id,NULL);
+		}
+	}
+	if(sd->soulenergy.num != before)
+		status_calc_pc(sd,0);
+
+	clif_soulenergy(sd);
+
+	return 0;
+}
+
+/*==========================================
+ * ソウルエナジー削除
+ *------------------------------------------
+ */
+int pc_delsoulenergy(struct map_session_data *sd,int count,int type)
+{
+	int i;
+
+	nullpo_retr(0, sd);
+
+	if(sd->soulenergy.num <= 0) {
+		sd->soulenergy.num = 0;
+		return 0;
+	}
+
+	if(count > sd->soulenergy.num)
+		count = sd->soulenergy.num;
+	sd->soulenergy.num -= count;
+	if(count > MAX_SOULENERGY)
+		count = MAX_SOULENERGY;
+
+	for(i=0; i<count; i++) {
+		if(sd->soulenergy.timer[i] != -1) {
+			delete_timer(sd->soulenergy.timer[i],pc_soulenergy_timer);
+			sd->soulenergy.timer[i] = -1;
+		}
+	}
+	for(i=count; i<MAX_SOULENERGY; i++) {
+		sd->soulenergy.timer[i-count] = sd->soulenergy.timer[i];
+		sd->soulenergy.timer[i] = -1;
+	}
+	status_calc_pc(sd,0);
+
+	if(!type)
+		clif_soulenergy(sd);
 
 	return 0;
 }
@@ -1681,6 +1795,31 @@ static int pc_calc_skillpoint(struct map_session_data* sd)
 }
 
 /*==========================================
+ * 現在の職業が何次職かを取得
+ *  戻り値= 0:ノービス
+ *          1:一次職、TK、GS、NJ、SNV、サモナー
+ *          2:二次職、SG、SL、RL、KG、OB、ESNV、スピリットハンドラー
+ *          3:三次職、SE、RE
+ *------------------------------------------
+ */
+static int pc_get_classlevel(struct map_session_data *sd)
+{
+	int classlevel = 0;
+
+	nullpo_retr(0, sd);
+
+	if(pc_is1stclass(sd)) {
+		classlevel = 1;
+	} else if(pc_is2ndclass(sd)) {
+		classlevel = 2;
+	} else if(pc_is3rdclass(sd)) {
+		classlevel = 3;
+	}
+
+	return classlevel;
+}
+
+/*==========================================
  * 覚えられるスキルの計算
  *------------------------------------------
  */
@@ -1705,61 +1844,15 @@ int pc_calc_skilltree(struct map_session_data *sd)
 
 	if(battle_config.skillup_limit) {
 		int skill_point = pc_calc_skillpoint(sd);
-		if(skill_point < 9) {
-			c = 0;
-		} else if(sd->status.skill_point >= sd->status.job_level && skill_point < 58 && c > PC_JOB_TF) {
-			switch(c) {
-				case PC_JOB_KN:
-				case PC_JOB_CR:
-				case PC_JOB_RK:
-				case PC_JOB_LG:
-					c = PC_JOB_SM;
-					break;
-				case PC_JOB_PR:
-				case PC_JOB_MO:
-				case PC_JOB_AB:
-				case PC_JOB_SR:
-					c = PC_JOB_AL;
-					break;
-				case PC_JOB_WZ:
-				case PC_JOB_SA:
-				case PC_JOB_WL:
-				case PC_JOB_SO:
-					c = PC_JOB_MG;
-					break;
-				case PC_JOB_BS:
-				case PC_JOB_AM:
-				case PC_JOB_NC:
-				case PC_JOB_GN:
-					c = PC_JOB_MC;
-					break;
-				case PC_JOB_HT:
-				case PC_JOB_BA:
-				case PC_JOB_DC:
-				case PC_JOB_RA:
-				case PC_JOB_MI:
-				case PC_JOB_WA:
-					c = PC_JOB_AC;
-					break;
-				case PC_JOB_AS:
-				case PC_JOB_RG:
-				case PC_JOB_GC:
-				case PC_JOB_SC:
-					c = PC_JOB_TF;
-					break;
-				case PC_JOB_SG:
-				case PC_JOB_SL:
-					c = PC_JOB_TK;
-					break;
-				case PC_JOB_KG:
-				case PC_JOB_OB:
-					c = PC_JOB_NJ;
-					break;
-				case PC_JOB_RL:
-					c = PC_JOB_GS;
-					break;
-				default:
-					break;
+		if(!pc_isdoram(sd)) {		// ドラム系列以外
+			if(skill_point < pc_calc_needskillpoint(sd,1)) {	// 一次職スキル習得不可（基本スキル未習得）であれば
+				c = PC_JOB_NV;			// ノービス扱い
+			} else if( pc_get_classlevel(sd) > 1 && skill_point < pc_calc_needskillpoint(sd,2)) {	// 二次職以上で一次職のスキルポイント未消化であれば
+				c = pc_get_base_job(c,1);	// 一次職扱い
+			} else if( pc_get_classlevel(sd) > 2 && skill_point < pc_calc_needskillpoint(sd,3)) {	// 三次職以上で一次職/二次職のスキルポイント未消化であれば
+				c = pc_get_base_job(c,2);	// 二次職扱い
+			} else if( pc_get_classlevel(sd) > 3 && skill_point < pc_calc_needskillpoint(sd,4)) {	// 三次職以上で一次職～三次職のスキルポイント未消化であれば
+				c = pc_get_base_job(c,3);	// 三次職扱い
 			}
 		}
 	}
@@ -3274,11 +3367,11 @@ int pc_setpos(struct map_session_data *sd,const char *mapname,int x,int y,int cl
 	if(sd->sc.data[SC_WARM].timer != -1)
 		status_change_end(&sd->bl, SC_WARM, -1);
 	// ニュートラルバリアー削除
-	if(sd->sc.data[SC_NEUTRALBARRIER_USER].timer != -1)
-		status_change_end(&sd->bl, SC_NEUTRALBARRIER_USER, -1);
+	if(sd->sc.data[SC_NEUTRALBARRIER_MASTER].timer != -1)
+		status_change_end(&sd->bl, SC_NEUTRALBARRIER_MASTER, -1);
 	// ステルスフィールド削除
-	if(sd->sc.data[SC_STEALTHFIELD_USER].timer != -1)
-		status_change_end(&sd->bl, SC_STEALTHFIELD_USER, -1);
+	if(sd->sc.data[SC_STEALTHFIELD_MASTER].timer != -1)
+		status_change_end(&sd->bl, SC_STEALTHFIELD_MASTER, -1);
 	// バンディング削除
 	if(sd->sc.data[SC_BANDING].timer != -1)
 		status_change_end(&sd->bl, SC_BANDING, -1);
@@ -3643,7 +3736,6 @@ int pc_runtodir(struct map_session_data *sd)
 			if(pc_checkskill(sd,RA_WUGSTRIKE))
 				skill_castend_damage_id(&sd->bl,&sd->bl,RA_WUGDASH,sd->sc.data[SC_WUGDASH].val1,gettick(),0);
 			status_change_end(&sd->bl,SC_WUGDASH,-1);
-			pc_setdir(sd, sd->dir, sd->head_dir);
 		}
 	} else {
 		unit_walktoxy( &sd->bl, to_x, to_y);
@@ -3767,10 +3859,6 @@ static int pc_checkallowskill(struct map_session_data *sd)
 		BS_ADRENALINE,
 		BS_ADRENALINE2,
 		GS_GATLINGFEVER,
-		RK_ENCHANTBLADE,
-		GC_POISONINGWEAPON,
-		AB_EXPIATIO,
-		RA_FEARBREEZE,
 	};
 
 	nullpo_retr(0, sd);
@@ -3814,6 +3902,15 @@ static int pc_checkallowskill(struct map_session_data *sd)
 		status_change_end(&sd->bl,SC_OVERTHRUSTMAX,-1);
 	}
 #endif
+	if( sd->sc.data[SC_CRUSHSTRIKE].timer != -1) {	// クラッシュストライク
+		status_change_end(&sd->bl,SC_CRUSHSTRIKE,-1);
+	}
+	if( sd->sc.data[SC_POISONINGWEAPON].timer != -1) {	// ポイズニングウェポン
+		status_change_end(&sd->bl,SC_POISONINGWEAPON,-1);
+	}
+	if( sd->sc.data[SC_FEARBREEZE].timer != -1) {	// フィアーブリーズ
+		status_change_end(&sd->bl,SC_FEARBREEZE,-1);
+	}
 	if( sd->sc.data[SC_HEAT_BARREL].timer != -1) {	// ヒートバレル
 		status_change_end(&sd->bl,SC_HEAT_BARREL,-1);
 	}
@@ -4886,6 +4983,79 @@ int pc_get_base_class(int class_, int type)
 }
 
 /*==========================================
+ * Jobから前職業のJobを取得
+ *------------------------------------------
+ */
+int pc_get_base_job(int job, int type)
+{
+	/* 4次職から3次職に変換 */
+	if(type < 4) {
+		switch(job){
+			case PC_JOB_DR:  job = PC_JOB_RK; break;		// ドラゴンナイト -> ルーンナイト
+			case PC_JOB_MT:  job = PC_JOB_NC; break;		// マイスター -> メカニック
+			case PC_JOB_SHC: job = PC_JOB_GC; break;		// シャドウクロス -> ギロチンクロス
+			case PC_JOB_AG:  job = PC_JOB_WL; break;		// アークメイジ -> ウォーロック
+			case PC_JOB_CD:  job = PC_JOB_AB; break;		// カーディナル -> アークビショップ
+			case PC_JOB_WH:  job = PC_JOB_RA; break;		// ウィンドホーク -> レンジャー
+			case PC_JOB_IG:  job = PC_JOB_LG; break;		// インペリアルガード -> ロイヤルガード
+			case PC_JOB_BO:  job = PC_JOB_GN; break;		// バイオロ -> ジェネティック
+			case PC_JOB_ABC: job = PC_JOB_SC; break;		// アビスチェイサー -> シャドウチェイサー
+			case PC_JOB_EM:  job = PC_JOB_SO; break;		// エレメンタルマスター -> ソーサラー
+			case PC_JOB_IQ:  job = PC_JOB_SR; break;		// インクイジター -> 修羅
+			case PC_JOB_TRB: job = PC_JOB_MI; break;		// トルバドゥール -> ミンストレル
+			case PC_JOB_TRV: job = PC_JOB_WA; break;		// トルヴェール -> ワンダラー
+			case PC_JOB_SKE: job = PC_JOB_SE; break;		// 天帝 -> 星帝
+			case PC_JOB_SOA: job = PC_JOB_RE; break;		// ソウルアセティック -> ソウルリーパー
+		}
+	}
+
+	/* 3次職から2次職に変換 */
+	if(type < 3) {
+		switch(job){
+			case PC_JOB_RK: job = PC_JOB_KN; break;		// ルーンナイト -> ナイト
+			case PC_JOB_WL: job = PC_JOB_WZ; break;		// ウォーロック -> ウィザード
+			case PC_JOB_RA: job = PC_JOB_HT; break;		// レンジャー -> ハンター
+			case PC_JOB_AB: job = PC_JOB_PR; break;		// アークビショップ -> プリースト
+			case PC_JOB_NC: job = PC_JOB_BS; break;		// メカニック -> ブラックスミス
+			case PC_JOB_GC: job = PC_JOB_AS; break;		// ギロチンクロス -> アサシン
+			case PC_JOB_LG: job = PC_JOB_CR; break;		// ロイヤルガード -> クルセイダー
+			case PC_JOB_SO: job = PC_JOB_SA; break;		// ソーサラー -> セージ
+			case PC_JOB_MI: job = PC_JOB_BA; break;		// ミンストレル -> バード
+			case PC_JOB_WA: job = PC_JOB_DC; break;		// ワンダラー -> ダンサー
+			case PC_JOB_SR: job = PC_JOB_MO; break;		// 修羅 -> モンク
+			case PC_JOB_GN: job = PC_JOB_AM; break;		// ジェネティック -> アルケミスト
+			case PC_JOB_SC: job = PC_JOB_RG; break;		// シャドウチェイサー -> ローグ
+			case PC_JOB_SE: job = PC_JOB_SG; break;		// 星帝 -> 拳聖
+			case PC_JOB_RE: job = PC_JOB_SL; break;		// ソウルリーパー -> ソウルリンカー
+			case PC_JOB_SK: job = PC_JOB_KG; break;		// 蜃気楼 -> 影狼
+			case PC_JOB_SN: job = PC_JOB_OB; break;		// 不知火 -> 朧
+			case PC_JOB_NW: job = PC_JOB_RL; break;		// ナイトウォッチ -> リベリオン
+			case PC_JOB_HN: job = PC_JOB_ESNV; break;	// ハイパーノービス -> スーパーノービス(限界突破)
+		}
+	}
+
+	/* 2次職から1次職に変換 */
+	if(type < 2) {
+		switch(job){
+			case PC_JOB_KN: case PC_JOB_CR: job = PC_JOB_SM; break;		// ナイト/クルセイダー -> ソードマン
+			case PC_JOB_PR: case PC_JOB_MO: job = PC_JOB_AL; break;		// プリースト/モンク -> アコライト
+			case PC_JOB_WZ: case PC_JOB_SA: job = PC_JOB_MG; break; 	// ウィザード/セージ -> マジシャン
+			case PC_JOB_BS: case PC_JOB_AM: job = PC_JOB_MC; break;		// ブラックスミス/アルケミスト -> マーチャント
+			case PC_JOB_HT: case PC_JOB_BA: case PC_JOB_DC: job = PC_JOB_AC; break; 		// ハンター/バード/ダンサー -> アーチャー
+			case PC_JOB_AS: case PC_JOB_RG: job = PC_JOB_TF; break;		// アサシン/ローグ -> シーフ
+			case PC_JOB_SG: case PC_JOB_SL: job = PC_JOB_TK; break;		// 拳聖/ソウルリンカー -> テコンキッド
+			case PC_JOB_DK: case PC_JOB_DA: job = PC_JOB_MB; break;		// デスナイト/ダークコレクター -> キョンシー
+			case PC_JOB_ESNV: job = PC_JOB_SNV; break;		// スーパーノービス(限界突破) -> スーパーノービス
+			case PC_JOB_KG: case PC_JOB_OB: job = PC_JOB_NJ; break;		// 影狼/朧 -> 忍者
+			case PC_JOB_RL:   job = PC_JOB_GS;  break;		// リベリオン -> ガンスリンガー
+			case PC_JOB_SH:   job = PC_JOB_SUM; break;		// スピリットハンドラー -> サモナー
+		}
+	}
+
+	return job;
+}
+
+/*==========================================
  * Baseレベルアップ
  *------------------------------------------
  */
@@ -4901,20 +5071,17 @@ static int pc_checkbaselevelup(struct map_session_data *sd)
 		// base側レベルアップ処理
 		sd->status.base_exp -= next;
 		sd->status.base_level++;
-		if(sd->status.base_level >= 151 && battle_config.get_status_point_over_lv100)
-			sd->status.status_point += (sd->status.base_level+45 ) / 7;
-		else if(sd->status.base_level >= 100 && battle_config.get_status_point_over_lv100)
-			sd->status.status_point += (sd->status.base_level+129 ) / 10;
-		else
-			sd->status.status_point += (sd->status.base_level+14) / 5;
+		sd->status.status_point += stpoint_table[sd->status.base_level-1];
+		sd->status.tstatus_point += tstpoint_table[sd->status.base_level-1];
 		clif_updatestatus(sd,SP_STATUSPOINT);
+		clif_updatestatus(sd,SP_TSTATUSPOINT);
 		clif_updatestatus(sd,SP_BASELEVEL);
 		clif_updatestatus(sd,SP_NEXTBASEEXP);
 
 		status_calc_pc_stop_begin(&sd->bl);
 
 		status_calc_pc(sd,0);
-		pc_heal(sd,sd->status.max_hp,sd->status.max_sp);
+		pc_heal(sd,sd->status.max_hp,sd->status.max_sp,0,0);
 
 		// スパノビはキリエ、イムポ、マニピ、グロ、サフラがかかる
 		if(sd->s_class.job == PC_JOB_SNV || sd->s_class.job == PC_JOB_ESNV) {
@@ -5772,13 +5939,208 @@ int pc_statusup2(struct map_session_data *sd,int type,int val)
 }
 
 /*==========================================
+ * 必要特性ステータスポイント計算
+ *------------------------------------------
+ */
+int pc_need_tstatus_point(struct map_session_data *sd,int type)
+{
+	int val = -1;
+
+	nullpo_retr(-1, sd);
+
+	switch(type) {
+		case SP_POW:
+			val = sd->status.pow;
+			break;
+		case SP_STA:
+			val = sd->status.sta;
+			break;
+		case SP_WIS:
+			val = sd->status.wis;
+			break;
+		case SP_SPL:
+			val = sd->status.spl;
+			break;
+		case SP_CON:
+			val = sd->status.con;
+			break;
+		case SP_CRT:
+			val = sd->status.crt;
+			break;
+	}
+
+	if(val >= battle_config.pc_tstatus_max)
+		return 0;
+
+	if(val < 0)
+		val = -1;
+	else
+		val = 1;
+
+	return val;
+}
+
+/*==========================================
+ * 特性ステータス成長
+ *------------------------------------------
+ */
+void pc_tstatusup(struct map_session_data *sd, int type, int num)
+{
+	int need, tstatus_point;
+	int val = 0;
+	int max = battle_config.pc_tstatus_max;
+	short *param = NULL;
+
+	nullpo_retv(sd);
+
+	if(type < SP_POW || type > SP_CRT || num <= 0) {
+		clif_statusupack(sd,type,0,0);
+		return;
+	}
+
+	need = pc_need_tstatus_point(sd,type);
+	if(need < 0 || need > sd->status.tstatus_point) {
+		clif_statusupack(sd,type,0,0);
+		return;
+	}
+
+	switch(type) {
+		case SP_POW:
+			param = &sd->status.pow;
+			break;
+		case SP_STA:
+			param = &sd->status.sta;
+			break;
+		case SP_WIS:
+			param = &sd->status.wis;
+			break;
+		case SP_SPL:
+			param = &sd->status.spl;
+			break;
+		case SP_CON:
+			param = &sd->status.con;
+			break;
+		case SP_CRT:
+			param = &sd->status.crt;
+			break;
+		default:
+			clif_statusupack(sd,type,0,0);
+			return;
+	}
+
+	if((*param) >= max) {
+		clif_statusupack(sd,type,0,0);
+		return;
+	}
+
+	val = (*param);
+	if(max > val + num)
+		max = val + num;
+
+	tstatus_point = sd->status.tstatus_point;
+
+	while(max > val && tstatus_point > 0) {
+		val++;
+		tstatus_point--;
+	}
+
+	(*param) = val;
+	sd->status.tstatus_point = tstatus_point;
+	if(need != pc_need_tstatus_point(sd,type)) {
+		clif_updatestatus(sd,type-SP_POW+SP_UPOW);
+	}
+
+	clif_updatestatus(sd,SP_TSTATUSPOINT);
+	clif_updatestatus(sd,type);
+	status_calc_pc(sd,0);
+	clif_statusupack(sd,type,1,val);
+
+	achieve_update_content(sd, ACH_STATUS, type, val);
+
+	return;
+}
+
+/*==========================================
+ * 必要な使用済みスキルポイントを取得
+ *------------------------------------------
+ */
+static int pc_calc_needskillpoint(struct map_session_data *sd, int class_level)
+{
+	int point = 0;
+	int max = 0;
+
+	nullpo_retr(0, sd);
+
+	switch( class_level ) {
+	case 0:		// ノービススキル
+		point = 0;	// ノービススキルは必要ポイント0
+		max = 0;
+		break;
+	case 1:		// 一次職スキル
+		if(pc_isdoram(sd)) {		// ドラム系列
+			point = 0;	// ドラムスキルは必要ポイント0
+			max = 0;
+			break;
+		} else {
+			point = pc_readglobalreg(sd,"PC_USESKILLPOINT_0TH");
+			max = battle_config.max_skillpoint_nv;
+		}
+		break;
+	case 2:		// 二次職スキル
+		point = pc_readglobalreg(sd,"PC_USESKILLPOINT_1ST");
+		if(pc_isexclass(sd)) {		// 忍者・ガンスリンガー系列
+			max = battle_config.max_skillpoint_ex1st;
+		} else if(pc_issnovice(sd)) {		// スーパーノービス系列
+			max = battle_config.max_skillpoint_snv;
+		} else if(pc_isdoram(sd)) {		// ドラム系列
+			max = battle_config.max_skillpoint_doram;
+		} else {
+			max = battle_config.max_skillpoint_1st;
+		}
+		break;
+	case 3:		// 三次職スキル
+		point = pc_readglobalreg(sd,"PC_USESKILLPOINT_2ND");
+		if(pc_istaekwon(sd)) {		// テコン系列
+			max = battle_config.max_skillpoint_tk2nd;
+		} else if(pc_isexclass(sd)) {		// 忍者・ガンスリンガー系列
+			max = battle_config.max_skillpoint_ex2nd;
+		} else if(pc_issnovice(sd)) {		// スーパーノービス系列
+			max = battle_config.max_skillpoint_esnv;
+		} else if(pc_isupper(sd)) {			// 転生職
+			max = battle_config.max_skillpoint_2nd;
+		} else {
+			max = battle_config.max_skillpoint_n2nd;
+		}
+		break;
+	case 4:		// 四次職
+		point = pc_readglobalreg(sd,"PC_USESKILLPOINT_3RD");
+		if(pc_istaekwon(sd)) {		// テコン系列
+			max = battle_config.max_skillpoint_tk3rd;
+		} else if(pc_isupper(sd)) {			// 転生職
+			max = battle_config.max_skillpoint_3rd;
+		} else {
+			max = battle_config.max_skillpoint_n3rd;
+		}
+		break;
+	}
+
+	// 転職記録が無い場合 もしくは 転職記録が最大値を超えている場合
+	if(point == 0 && max > 0 || point > max) {
+		point = max;
+	}
+
+	return point;
+}
+
+/*==========================================
  * スキル取得可能かどうか
  *------------------------------------------
  */
 static int pc_check_skillup(struct map_session_data *sd,int skill_num)
 {
-	int skill_point,up_level;
+	int skill_point,need_point;
 	struct skill_tree_entry *st;
+	char output[100];
 
 	nullpo_retr(0, sd);
 
@@ -5786,18 +6148,40 @@ static int pc_check_skillup(struct map_session_data *sd,int skill_num)
 	if(st == NULL)
 		return 0;
 
-	skill_point = pc_calc_skillpoint(sd);
+	if(battle_config.skillup_limit) {
+		// 現在使用済みスキルポイントを取得
+		skill_point = pc_calc_skillpoint(sd);
+		
+		// 必要な使用済みスキルポイントを取得
+		need_point = pc_calc_needskillpoint(sd, st->class_level);
 
-	if(skill_point < 9 || pc_isdoram(sd))
-		up_level = 0;
-	else if(sd->status.skill_point >= sd->status.job_level && skill_point < 58 && (pc_is2ndclass(sd) || pc_is3rdclass(sd)))
-		up_level = 1;
-	else if(pc_is2ndclass(sd))
-		up_level = 2;
-	else
-		up_level = 3;
+		// 必要な使用済みスキルポイントに達していなければNG
+		if(skill_point  < need_point) {
+			// スキルランクごとにメッセージ表示
+			switch( st->class_level ){
+			case 1:
+				snprintf(output, sizeof(output), msg_txt(213), need_point - skill_point);		// 基本スキル %d個を上げてください。
+				clif_disp_onlyself(sd->fd, output);
+				break;
+			case 2:
+				clif_msgstringtable3(sd, 1566, need_point - skill_point);	// 1次職スキル %d個をもっと上げてください。
+				break;
+			case 3:
+				clif_msgstringtable3(sd, 1567, need_point - skill_point);	// 1次または2次職スキル %d個を上げてください。
+				break;
+			case 4:
+				clif_msgstringtable3(sd, 3690, need_point - skill_point);	// 1次、2次、3次職スキル %d個を上げてください。
+				break;
+			default:
+				snprintf(output, sizeof(output), msg_txt(214), need_point - skill_point);		// 下位職スキル %d個を上げてください。
+				clif_disp_onlyself(sd->fd, output);
+				break;
+			}
+			return 0;
+		}
+	}
 
-	return (st->class_level <= up_level);
+	return 1;
 }
 
 /*==========================================
@@ -5900,7 +6284,7 @@ int pc_allskillup(struct map_session_data *sd,int flag)
 #define sumsp(a)	((a)*((a-2)/10+2) - 5*((a-2)/10)*((a-2)/10) - 6*((a-2)/10) -2)
 #define newsumsp(a)	((roundsp(a)*4+12)*(a-100)-((roundsp(a)-2)*(roundsp(a)-1)*10+(roundsp(a)-1)*20))
 
-void pc_resetstate(struct map_session_data* sd)
+void pc_resetstatus(struct map_session_data* sd, int flag)
 {
 	int add = 0;
 	int param[6];
@@ -5908,46 +6292,83 @@ void pc_resetstate(struct map_session_data* sd)
 
 	nullpo_retv(sd);
 
-	param[0] = sd->status.str;
-	param[1] = sd->status.agi;
-	param[2] = sd->status.vit;
-	param[3] = sd->status.int_;
-	param[4] = sd->status.dex;
-	param[5] = sd->status.luk;
+	// 基本ステータスのリセット
+	if(flag == 0 || flag&1) {
+		param[0] = sd->status.str;
+		param[1] = sd->status.agi;
+		param[2] = sd->status.vit;
+		param[3] = sd->status.int_;
+		param[4] = sd->status.dex;
+		param[5] = sd->status.luk;
 
-	for(i = 0; i < 6; i++) {
-		if(battle_config.new_statusup_calc && param[i] > 100) {
-			add += newsumsp(param[i]);
-			param[i] = 100;
+		for(i = 0; i < 6; i++) {
+			if(battle_config.new_statusup_calc && param[i] > 100) {
+				add += newsumsp(param[i]);
+				param[i] = 100;
+			}
+			add += sumsp(param[i]);
 		}
-		add += sumsp(param[i]);
+
+		sd->status.status_point += add;
+
+		clif_updatestatus(sd,SP_STATUSPOINT);
+
+		sd->status.str  = 1;
+		sd->status.agi  = 1;
+		sd->status.vit  = 1;
+		sd->status.int_ = 1;
+		sd->status.dex  = 1;
+		sd->status.luk  = 1;
+
+		clif_updatestatus(sd,SP_STR);
+		clif_updatestatus(sd,SP_AGI);
+		clif_updatestatus(sd,SP_VIT);
+		clif_updatestatus(sd,SP_INT);
+		clif_updatestatus(sd,SP_DEX);
+		clif_updatestatus(sd,SP_LUK);
+
+		clif_updatestatus(sd,SP_USTR);
+		clif_updatestatus(sd,SP_UAGI);
+		clif_updatestatus(sd,SP_UVIT);
+		clif_updatestatus(sd,SP_UINT);
+		clif_updatestatus(sd,SP_UDEX);
+		clif_updatestatus(sd,SP_ULUK);
 	}
 
-	sd->status.status_point += add;
+	// 特性ステータスのリセット
+	if(flag == 0 || flag&2) {
+		sd->status.tstatus_point += sd->status.pow;
+		sd->status.tstatus_point += sd->status.sta;
+		sd->status.tstatus_point += sd->status.wis;
+		sd->status.tstatus_point += sd->status.spl;
+		sd->status.tstatus_point += sd->status.con;
+		sd->status.tstatus_point += sd->status.crt;
+		clif_updatestatus(sd,SP_TSTATUSPOINT);
 
-	clif_updatestatus(sd,SP_STATUSPOINT);
+		sd->status.pow = 0;
+		clif_updatestatus(sd,SP_POW);
+		clif_updatestatus(sd,SP_UPOW);
 
-	sd->status.str  = 1;
-	sd->status.agi  = 1;
-	sd->status.vit  = 1;
-	sd->status.int_ = 1;
-	sd->status.dex  = 1;
-	sd->status.luk  = 1;
+		sd->status.sta = 0;
+		clif_updatestatus(sd,SP_STA);
+		clif_updatestatus(sd,SP_USTA);
 
-	clif_updatestatus(sd,SP_STR);
-	clif_updatestatus(sd,SP_AGI);
-	clif_updatestatus(sd,SP_VIT);
-	clif_updatestatus(sd,SP_INT);
-	clif_updatestatus(sd,SP_DEX);
-	clif_updatestatus(sd,SP_LUK);
+		sd->status.wis = 0;
+		clif_updatestatus(sd,SP_WIS);
+		clif_updatestatus(sd,SP_UWIS);
 
-	clif_updatestatus(sd,SP_USTR);
-	clif_updatestatus(sd,SP_UAGI);
-	clif_updatestatus(sd,SP_UVIT);
-	clif_updatestatus(sd,SP_UINT);
-	clif_updatestatus(sd,SP_UDEX);
-	clif_updatestatus(sd,SP_ULUK);
+		sd->status.spl = 0;
+		clif_updatestatus(sd,SP_SPL);
+		clif_updatestatus(sd,SP_USPL);
 
+		sd->status.con = 0;
+		clif_updatestatus(sd,SP_CON);
+		clif_updatestatus(sd,SP_UCON);
+
+		sd->status.crt = 0;
+		clif_updatestatus(sd,SP_CRT);
+		clif_updatestatus(sd,SP_UCRT);
+	}
 	status_calc_pc(sd,0);
 
 	return;
@@ -5963,12 +6384,13 @@ void pc_resetskill(struct map_session_data* sd, int flag)
 
 	nullpo_retv(sd);
 
-	if(flag < 0)
-		flag = battle_config.quest_skill_reset;
-
 	for(i=1; i<MAX_PCSKILL; i++) {
 		if((skill = pc_checkskill2(sd,i)) > 0) {
-			if(!(skill_get_inf2(i)&INF2_QUEST) || battle_config.quest_skill_learn) {
+			if(sd->status.skill[i].id == NV_BASIC && !(flag&2)) {
+				// flagが2以外の場合は基本スキルはリセットしない
+				continue;
+			}
+			else if(!(skill_get_inf2(i)&INF2_QUEST) || battle_config.quest_skill_learn) {
 				if(!sd->status.skill[i].flag) {
 					sd->status.skill_point += skill;
 				} else if(sd->status.skill[i].flag > 2) {
@@ -5976,8 +6398,8 @@ void pc_resetskill(struct map_session_data* sd, int flag)
 				}
 				sd->status.skill[i].lv = 0;
 			}
-			else if(flag) {
-				// クエストスキルもリセットする
+			else if(flag&1) {
+				// flagが1の場合はクエストスキルもリセットする
 				sd->status.skill[i].lv = 0;
 			}
 			sd->status.skill[i].flag = 0;
@@ -6659,22 +7081,25 @@ int pc_setparam(struct map_session_data *sd,int type,int val)
 	case SP_BASELEVEL:
 		if(val > sd->status.base_level) {
 			int i;
-			for(i = 1; i <= (val - sd->status.base_level); i++)
-				sd->status.status_point += (sd->status.base_level + i + 14) / 5;
+			for(i = 1; i <= (val - sd->status.base_level); i++) {
+				sd->status.status_point += stpoint_table[sd->status.base_level+i-1];
+				sd->status.tstatus_point += tstpoint_table[sd->status.base_level+i-1];
+			}
 		}
 		sd->status.base_level = val;
 		sd->status.base_exp = 0;
 		clif_updatestatus(sd, SP_BASELEVEL);
 		clif_updatestatus(sd, SP_NEXTBASEEXP);
 		clif_updatestatus(sd, SP_STATUSPOINT);
+		clif_updatestatus(sd, SP_TSTATUSPOINT);
 		clif_updatestatus(sd, SP_BASEEXP);
 		status_calc_pc(sd, 0);
-		pc_heal(sd, sd->status.max_hp, sd->status.max_sp);
+		pc_heal(sd, sd->status.max_hp, sd->status.max_sp,0,0);
 		break;
 	case SP_JOBLEVEL:
 		if(val > 0) {
 			if(val >= sd->status.job_level) {
-				int up_level = max_job_table[sd->s_class.upper][sd->s_class.job];
+				int up_level = job_db[sd->s_class.job].max_joblv[sd->s_class.upper];
 				if(val > up_level)
 					val = up_level;
 				sd->status.skill_point += (val-sd->status.job_level);
@@ -6884,10 +7309,30 @@ static int pc_checkoversp(struct map_session_data *sd)
 }
 
 /*==========================================
- * HP/SP回復
+ *
  *------------------------------------------
  */
-int pc_heal(struct map_session_data *sd,int hp,int sp)
+static int pc_checkoverap(struct map_session_data *sd)
+{
+	nullpo_retr(0, sd);
+
+	if(sd->status.ap == sd->status.max_ap)
+		return 1;
+	if(sd->status.ap > sd->status.max_ap) {
+		sd->status.ap = sd->status.max_ap;
+		clif_updatestatus(sd,SP_AP);
+		return 2;
+	}
+
+	return 0;
+}
+
+/*==========================================
+ * HP/SP回復
+ * flag 0:エフェクト無し 1:エフェクト有り
+ *------------------------------------------
+ */
+int pc_heal(struct map_session_data *sd,int hp,int sp,int ap,int flag)
 {
 	nullpo_retr(0, sd);
 
@@ -6896,6 +7341,9 @@ int pc_heal(struct map_session_data *sd,int hp,int sp)
 
 	if(pc_checkoversp(sd) && sp > 0)
 		sp = 0;
+
+	if(pc_checkoverap(sd) && ap > 0)
+		ap = 0;
 
 	// バーサーク中は回復させない
 	if(sd->sc.data[SC_BERSERK].timer != -1) {
@@ -6907,6 +7355,8 @@ int pc_heal(struct map_session_data *sd,int hp,int sp)
 		hp = sd->status.max_hp - sd->status.hp;
 	if(sp+sd->status.sp > sd->status.max_sp)
 		sp = sd->status.max_sp - sd->status.sp;
+	if(ap+sd->status.ap > sd->status.max_ap)
+		ap = sd->status.max_ap - sd->status.ap;
 	sd->status.hp += hp;
 	if(sd->status.hp <= 0) {
 		sd->status.hp = 0;
@@ -6916,15 +7366,28 @@ int pc_heal(struct map_session_data *sd,int hp,int sp)
 	sd->status.sp += sp;
 	if(sd->status.sp <= 0)
 		sd->status.sp = 0;
+	sd->status.ap += ap;
+	if(sd->status.ap <= 0)
+		sd->status.ap = 0;
 	if(hp) {
+		if(hp > 0 && flag&1)
+			clif_heal(sd->fd,SP_HP,hp);
 		clif_updatestatus(sd,SP_HP);
 		if(sd->status.party_id > 0 && party_search(sd->status.party_id))
 			clif_party_hp(sd);
 	}
-	if(sp)
+	if(sp) {
+		if(sp > 0 && flag&1)
+			clif_heal(sd->fd,SP_SP,sp);
 		clif_updatestatus(sd,SP_SP);
+	}
+	if(ap) {
+		if(ap > 0 && flag&1)
+			clif_heal(sd->fd,SP_AP,ap);
+		clif_updatestatus(sd,SP_AP);
+	}
 
-	return hp + sp;
+	return hp + sp + ap;
 }
 
 /*==========================================
@@ -6968,7 +7431,7 @@ int pc_itemheal(struct map_session_data *sd,int hp,int sp)
 			else
 				hp = hp * battle_config.ranker_potion_bonus / 100;
 		}
-		if(sd->sc.data[SC_ISHA].timer != -1)		// バイタリティアクティベーション
+		if(sd->sc.data[SC_VITALITYACTIVATION].timer != -1)	// バイタリティアクティベーション
 			hp = hp * 150 / 100;
 		if(sd->sc.data[SC_CRITICALWOUND].timer != -1)
 			hp = hp * (100 - sd->sc.data[SC_CRITICALWOUND].val2) / 100;
@@ -6998,7 +7461,7 @@ int pc_itemheal(struct map_session_data *sd,int hp,int sp)
 			else
 				sp = sp * battle_config.ranker_potion_bonus / 100;
 		}
-		if(sd->sc.data[SC_ISHA].timer != -1)		// バイタリティアクティベーション
+		if(sd->sc.data[SC_VITALITYACTIVATION].timer != -1)		// バイタリティアクティベーション
 			sp = sp * 50 / 100;
 	}
 	if(hp+sd->status.hp > sd->status.max_hp)
@@ -7092,6 +7555,8 @@ int pc_jobchange(struct map_session_data *sd,int job, int upper)
 	int i;
 	int b_class = 0;
 	int joblv_nochange = 0;
+	int prev_classlevel;
+	int skill_point;
 
 	nullpo_retr(0, sd);
 
@@ -7135,7 +7600,11 @@ int pc_jobchange(struct map_session_data *sd,int job, int upper)
 	   sd->status.class_ == b_class)	// SEX_FEMALEは影狼になれない、SEX_MALEは朧になれない
 		return 1;
 
+	// 前職業の段階を保持
+	prev_classlevel = pc_get_classlevel(sd);
+
 	sd->status.class_ = sd->view_class = b_class;
+	sd->status.style = 0;
 
 	// 元職業を再設定
 	sd->s_class = pc_calc_base_job(sd->status.class_);
@@ -7157,9 +7626,47 @@ int pc_jobchange(struct map_session_data *sd,int job, int upper)
 	status_calc_pc_stop_end(&sd->bl);
 
 	clif_changelook(&sd->bl,LOOK_BASE,sd->view_class);
+	pc_changebodystyle(sd);
 
 	if(sd->status.manner < 0)
 		clif_changestatus(&sd->bl,SP_MANNER,sd->status.manner);
+
+	// 前職業から段階が進んでいる場合
+	if(pc_get_classlevel(sd) > prev_classlevel) {
+		skill_point = pc_calc_skillpoint(sd);	// 使用済みスキルポイントを取得
+		switch(prev_classlevel) {
+		case 0:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_0TH",sd->status.skill_point + skill_point);
+			break;
+		case 1:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_1ST",sd->status.skill_point + skill_point);
+			break;
+		case 2:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_2ND",sd->status.skill_point + skill_point);
+			break;
+		case 3:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_3RD",sd->status.skill_point + skill_point);
+			break;
+		}
+	}
+
+	// 前職業から段階が戻っている場合
+	if(pc_get_classlevel(sd) < prev_classlevel) {
+		switch(pc_get_classlevel(sd)) {
+		case 0:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_0TH",0);
+			// fall through
+		case 1:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_1ST",0);
+			// fall through
+		case 2:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_2ND",0);
+			// fall through
+		case 3:
+			pc_setglobalreg(sd,"PC_USESKILLPOINT_3RD",0);
+			break;
+		}
+	}
 
 	status_calc_pc(sd,0);
 	pc_checkallowskill(sd);
@@ -7243,7 +7750,8 @@ int pc_changelook(struct map_session_data *sd,int type,int val)
 		break;
 	case LOOK_BODY2:
 		sd->status.style = val;
-		break;
+		pc_changebodystyle(sd);
+		return 0;
 	}
 	clif_changelook(&sd->bl,type,val);
 
@@ -7913,6 +8421,45 @@ void pc_costumelook(struct map_session_data *sd)
 }
 
 /*==========================================
+ * スタイルを反映する
+ *------------------------------------------
+ */
+void pc_changebodystyle(struct map_session_data *sd)
+{
+	int style = 0;
+
+	nullpo_retv(sd);
+
+#if PACKETVER < 20231220
+	style = sd->status.style;
+#else
+	if(sd->status.style > 0) {
+		switch(sd->s_class.job) {
+		case PC_JOB_RK: style = PC_CLASS_RK_2ND; break;
+		case PC_JOB_WL: style = PC_CLASS_WL_2ND; break;
+		case PC_JOB_RA: style = PC_CLASS_RA_2ND; break;
+		case PC_JOB_AB: style = PC_CLASS_AB_2ND; break;
+		case PC_JOB_NC: style = PC_CLASS_NC_2ND; break;
+		case PC_JOB_GC: style = PC_CLASS_GC_2ND; break;
+		case PC_JOB_LG: style = PC_CLASS_LG_2ND; break;
+		case PC_JOB_SO: style = PC_CLASS_SO_2ND; break;
+		case PC_JOB_MI: style = PC_CLASS_MI_2ND; break;
+		case PC_JOB_WA: style = PC_CLASS_WA_2ND; break;
+		case PC_JOB_SR: style = PC_CLASS_SR_2ND; break;
+		case PC_JOB_GN: style = PC_CLASS_GN_2ND; break;
+		case PC_JOB_SC: style = PC_CLASS_SC_2ND; break;
+		default:
+			style = sd->status.class_;
+			break;
+		}
+	}
+	else
+		style = sd->status.class_;
+#endif
+	clif_changelook(&sd->bl,LOOK_BODY2,style);
+}
+
+/*==========================================
  * アイテムを装備する
  *------------------------------------------
  */
@@ -8254,15 +8801,15 @@ void pc_unequipitem(struct map_session_data *sd, int n, int type)
 
 	if(hp) {
 		if(sd->status.hp > hp) {
-			pc_heal(sd,-hp,0);
+			pc_heal(sd,-hp,0,0,0);
 		} else {
 			if(!battle_config.death_by_unrig_penalty) {
 				// 一旦HPが0になり、すぐに1に回復する
 				sd->status.hp = 0;
 				clif_updatestatus(sd,SP_HP);
-				pc_heal(sd,1,0);
+				pc_heal(sd,1,0,0,0);
 			} else {
-				pc_heal(sd,-sd->status.hp,0);
+				pc_heal(sd,-sd->status.hp,0,0,0);
 			}
 		}
 	}
@@ -9555,7 +10102,7 @@ static int pc_bleeding(struct map_session_data *sd)
 
 	if(hp) {
 		if(sd->status.hp > hp) {
-			pc_heal(sd,-hp,0);
+			pc_heal(sd,-hp,0,0,0);
 		} else {
 			sd->status.hp = 0;
 			clif_updatestatus(sd,SP_HP);
@@ -9563,7 +10110,7 @@ static int pc_bleeding(struct map_session_data *sd)
 	}
 	if(sp) {
 		if(sd->status.sp > sp) {
-			pc_heal(sd,0,-sp);
+			pc_heal(sd,0,-sp,0,0);
 		} else {
 			sd->status.sp = 0;
 			clif_updatestatus(sd,SP_SP);
@@ -9602,14 +10149,14 @@ static int pc_natural_heal_sub(struct map_session_data *sd,va_list ap)
 		if( sd->sc.data[SC_MAXIMIZEPOWER].timer == -1 &&	// マキシマイズパワー状態ではSPが回復しない
 		    sd->sc.data[SC_EXTREMITYFIST].timer == -1 &&	// 阿修羅状態ではSPが回復しない
 		    sd->sc.data[SC_BERSERK].timer == -1 &&		// バーサーク状態ではSPが回復しない
-		    sd->sc.data[SC_ISHA].timer == -1 &&		// バイタリティアクティベーション状態ではSPが回復しない
+		    sd->sc.data[SC_VITALITYACTIVATION].timer == -1 &&	// バイタリティアクティベーション状態ではSPが回復しない
 		    sd->sc.data[SC_WEAPONBLOCKING].timer == -1 &&		// ウェポンブロッキング状態ではSPが回復しない
 		    sd->sc.data[SC_TOXIN].timer == -1 &&	// トキシン状態ではSPが回復しない
 		    sd->sc.data[SC_OBLIVIONCURSE].timer == -1 &&		// オブリビオンカース状態ではSPが回復しない
 		    sd->sc.data[SC_ELECTRICSHOCKER].timer == -1 &&	// エレクトリックショッカー状態ではSPが回復しない
 		    sd->sc.data[SC_CAMOUFLAGE].timer == -1 &&		// カモフラージュ状態ではSPが回復しない
 		    sd->sc.data[SC_MAGNETICFIELD].timer == -1 &&	// マグネティックフィールド状態ではSPが回復しない
-		    sd->sc.data[SC_STEALTHFIELD_USER].timer == -1 &&	// ステルスフィールド(使用者)はSPが回復しない
+		    sd->sc.data[SC_STEALTHFIELD_MASTER].timer == -1 &&	// ステルスフィールド(使用者)はSPが回復しない
 		    sd->sc.data[SC__REPRODUCE].timer == -1 &&	// リプロデュース状態はSPが回復しない
 		    sd->sc.data[SC__SHADOWFORM].timer == -1 &&	// シャドウフォーム状態はSPが回復しない
 		    sd->sc.data[SC__INVISIBILITY].timer == -1 &&	// インビジビリティ状態はSPが回復しない
@@ -9875,6 +10422,33 @@ int pc_readdb(void)
 		exp_table[19][i] = j9;
 		exp_table[20][i] = j10;
 		exp_table[21][i] = j11;
+		i++;
+		if(i >= MAX_LEVEL)
+			break;
+	}
+	fclose(fp);
+	printf("read %s done\n", filename);
+
+	// ステータスポイントDB
+	filename = "db/pc_stpoint_db.txt";
+	memset(stpoint_table, 0, sizeof(stpoint_table));
+	fp = fopen(filename, "r");
+	if(fp == NULL) {
+		printf("pc_readdb: open [%s] failed !\n", filename);
+		return 1;
+	}
+	i = 0;
+	while(fgets(line,1020,fp)) {
+		int stpoint,tstpoint;
+		if(line[0] == '\0' || line[0] == '\r' || line[0] == '\n')
+			continue;
+		if(line[0] == '/' && line[1] == '/')
+			continue;
+		if(sscanf(line,"%d,%d",&stpoint,&tstpoint) != 2)
+			continue;
+
+		stpoint_table[i] = stpoint;
+		tstpoint_table[i] = tstpoint;
 		i++;
 		if(i >= MAX_LEVEL)
 			break;

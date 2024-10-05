@@ -294,10 +294,10 @@ static int unit_walktoxy_timer(int tid,unsigned int tick,int id,void *data)
 		}
 		if(sd->sc.data[SC_WARM].timer != -1)
 			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_WARM].val4),sd->bl.m,dx,dy);
-		if(sd->sc.data[SC_NEUTRALBARRIER_USER].timer != -1)
-			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_NEUTRALBARRIER_USER].val4),sd->bl.m,dx,dy);
-		if(sd->sc.data[SC_STEALTHFIELD_USER].timer != -1)
-			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_STEALTHFIELD_USER].val4),sd->bl.m,dx,dy);
+		if(sd->sc.data[SC_NEUTRALBARRIER_MASTER].timer != -1)
+			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_NEUTRALBARRIER_MASTER].val4),sd->bl.m,dx,dy);
+		if(sd->sc.data[SC_STEALTHFIELD_MASTER].timer != -1)
+			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_STEALTHFIELD_MASTER].val4),sd->bl.m,dx,dy);
 		if(sd->sc.data[SC_BANDING].timer != -1)
 			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_BANDING].val4),sd->bl.m,dx,dy);
 	}
@@ -793,12 +793,12 @@ int unit_movepos(struct block_list *bl,int dst_x,int dst_y,int flag)
 			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_WARM].val4),sd->bl.m,dx,dy);
 		}
 		// ニュートラルバリアーの位置変更
-		if(sd->sc.data[SC_NEUTRALBARRIER_USER].timer != -1) {
-			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_NEUTRALBARRIER_USER].val4),sd->bl.m,dx,dy);
+		if(sd->sc.data[SC_NEUTRALBARRIER_MASTER].timer != -1) {
+			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_NEUTRALBARRIER_MASTER].val4),sd->bl.m,dx,dy);
 		}
 		// ステルスフィールドの位置変更
-		if(sd->sc.data[SC_STEALTHFIELD_USER].timer != -1) {
-			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_STEALTHFIELD_USER].val4),sd->bl.m,dx,dy);
+		if(sd->sc.data[SC_STEALTHFIELD_MASTER].timer != -1) {
+			skill_unit_move_unit_group(map_id2sg(sd->sc.data[SC_STEALTHFIELD_MASTER].val4),sd->bl.m,dx,dy);
 		}
 		// バンディングの位置変更
 		if(sd->sc.data[SC_BANDING].timer != -1) {
@@ -1087,7 +1087,7 @@ int unit_skilluse_id2(struct block_list *src, int target_id, int skill_num, int 
 				if(skill_num == AL_TELEPORT || skill_num == AL_WARP)
 					clif_skill_teleportmessage(src_sd,0);
 				else
-					clif_skill_fail(src_sd,skill_num,0,0,0);
+					clif_skill_fail(src_sd,skill_num,SKILLFAIL_MAP,0,0);
 			}
 			return 0;
 		}
@@ -1099,7 +1099,7 @@ int unit_skilluse_id2(struct block_list *src, int target_id, int skill_num, int 
 	if(sc && sc->data[SC_KYOMU].timer != -1) {
 		if(atn_rand()%100 < 10) {
 			if(src_sd)
-				clif_skill_fail(src_sd,skill_num,0,0,0);
+				clif_skill_fail(src_sd,skill_num,SKILLFAIL_FAILED,0,0);
 		}
 	}
 
@@ -1148,8 +1148,8 @@ int unit_skilluse_id2(struct block_list *src, int target_id, int skill_num, int 
 		}
 		break;
 	case GC_WEAPONCRUSH:	/* ウェポンクラッシュ */
-		if(sc && sc->data[SC_WEAPONBLOCKING2].timer != -1)
-			target_id = sc->data[SC_WEAPONBLOCKING2].val2;
+		if(sc && sc->data[SC_WEAPONBLOCKING_POSTDELAY].timer != -1)
+			target_id = sc->data[SC_WEAPONBLOCKING_POSTDELAY].val2;
 		break;
 	case RL_QD_SHOT:		/* クイックドローショット */
 		if(sc && sc->data[SC_QD_SHOT_READY].timer != -1)
@@ -1165,7 +1165,7 @@ int unit_skilluse_id2(struct block_list *src, int target_id, int skill_num, int 
 
 	if( (target = map_id2bl(target_id)) == NULL ) {
 		if(src_sd)
-			clif_skill_fail(src_sd,skill_num,0,0,0);
+			clif_skill_fail(src_sd,skill_num,SKILLFAIL_FAILED,0,0);
 		return 0;
 	}
 
@@ -1191,7 +1191,7 @@ int unit_skilluse_id2(struct block_list *src, int target_id, int skill_num, int 
 		case BD_ENCORE:					/* アンコール */
 			 // 前回使用した踊りがないとだめ
 			if(!src_sd->skill_dance.id || pc_checkskill(src_sd,src_sd->skill_dance.id) <= 0) {
-				clif_skill_fail(src_sd,skill_num,0,0,0);
+				clif_skill_fail(src_sd,skill_num,SKILLFAIL_FAILED,0,0);
 				return 0;
 			}
 			src_sd->skill_used.id = skill_num;
@@ -1301,6 +1301,10 @@ int unit_skilluse_id2(struct block_list *src, int target_id, int skill_num, int 
 	case ST_CHASEWALK:	/* チェイスウォーク */
 		if(sc && sc->data[SC_CHASEWALK].timer != -1)
 			casttime = 0;
+		break;
+	case RA_WUGDASH:		/* ウォーグダッシュ */
+		if(sc && sc->data[SC_WUGDASH].timer != -1)
+			unit_stop_walking(src,1);
 		break;
 	case SR_TIGERCANNON:	/* 號砲 */
 	case SR_GATEOFHELL:		/* 羅刹破凰撃 */
@@ -1479,7 +1483,7 @@ int unit_skilluse_pos2( struct block_list *src, int skill_x, int skill_y, int sk
 	if(sc && sc->data[SC_KYOMU].timer != -1) {
 		if(atn_rand()%100 < 10) {
 			if(src_sd)
-				clif_skill_fail(src_sd,skill_num,0,0,0);
+				clif_skill_fail(src_sd,skill_num,SKILLFAIL_FAILED,0,0);
 		}
 	}
 
@@ -1503,7 +1507,7 @@ int unit_skilluse_pos2( struct block_list *src, int skill_x, int skill_y, int sk
 				if(skill_num == AL_TELEPORT)
 					clif_skill_teleportmessage(src_sd,0);
 				else
-					clif_skill_fail(src_sd,skill_num,0,0,0);
+					clif_skill_fail(src_sd,skill_num,SKILLFAIL_MAP,0,0);
 			}
 			return 0;
 		}
@@ -1754,7 +1758,7 @@ int unit_can_move(struct block_list *bl)
 		    (sc->data[SC_GRAVITATION_USER].timer != -1 && battle_config.player_gravitation_type < 2) ||	//グラビテーションフィールド使用者
 		    (battle_config.hermode_no_walking && sc->data[SC_DANCING].timer != -1 && sc->data[SC_DANCING].val1 == CG_HERMODE) ||
 		    (sc->data[SC_FEAR].timer != -1 && sc->data[SC_FEAR].val3 > 0) ||	// 恐怖状態（2秒間）
-		    sc->data[SC_WEAPONBLOCKING2].timer != -1 ||	// ウェポンブロッキング（ブロック中）
+		    sc->data[SC_WEAPONBLOCKING_POSTDELAY].timer != -1 ||	// ウェポンブロッキング（ブロック中）
 		    sc->data[SC_ELECTRICSHOCKER].timer != -1 ||	// エレクトリックショッカー
 		    sc->data[SC_WUGBITE].timer != -1 ||		// ウォーグバイト
 		    (sc->data[SC_CAMOUFLAGE].timer != -1 && sc->data[SC_CAMOUFLAGE].val1 < 3) ||	// カモフラージュ（Lv3未満）
@@ -1871,7 +1875,6 @@ static int unit_attack_timer_sub(int tid,unsigned int tick,int id,void *data)
 		   sc->data[SC_DEATHBOUND].timer != -1 ||
 		   sc->data[SC_TRICKDEAD].timer != -1 ||
 		   sc->data[SC_BLADESTOP].timer != -1 ||
-		   sc->data[SC_FULLBUSTER].timer != -1 ||
 		   sc->data[SC_KEEPING].timer != -1 ||
 		   sc->data[SC_WHITEIMPRISON].timer != -1 ||
 		   sc->data[SC_KINGS_GRACE].timer != -1 ||
@@ -1950,7 +1953,7 @@ static int unit_attack_timer_sub(int tid,unsigned int tick,int id,void *data)
 	if(!battle_config.sdelay_attack_enable && (!src_sd || pc_checkskill(src_sd,SA_FREECAST) <= 0)) {
 		if(DIFF_TICK(tick , src_ud->canact_tick) < 0) {
 			if(src_sd)
-				clif_skill_fail(src_sd,1,4,0,0);
+				clif_skill_fail(src_sd,1,SKILLFAIL_INTERVAL,0,0);
 			return 0;
 		}
 	}
@@ -2138,12 +2141,12 @@ int unit_dataset(struct block_list *bl)
  *
  *------------------------------------------
  */
-int unit_heal(struct block_list *bl,int hp,int sp)
+int unit_heal(struct block_list *bl,int hp,int sp,int ap,int flag)
 {
 	nullpo_retr(0, bl);
 
 	if(bl->type == BL_PC)
-		pc_heal((struct map_session_data*)bl,hp,sp);
+		pc_heal((struct map_session_data*)bl,hp,sp,ap,flag);
 	else if(bl->type == BL_MOB)
 		mob_heal((struct mob_data*)bl,hp);
 	else if(bl->type == BL_HOM)

@@ -4326,6 +4326,7 @@ int buildin_getiteminfo(struct script_state *st);
 int buildin_getonlinepartymember(struct script_state *st);
 int buildin_getonlineguildmember(struct script_state *st);
 int buildin_makemerc(struct script_state *st);
+int buildin_delmerc(struct script_state *st);
 int buildin_openbook(struct script_state *st);
 int buildin_pushpc(struct script_state *st);
 int buildin_setcell(struct script_state *st);
@@ -4367,6 +4368,7 @@ int buildin_mobuseskill(struct script_state *st);
 int buildin_mobuseskillpos(struct script_state *st);
 int buildin_areamobuseskill(struct script_state *st);
 int buildin_getequipcardid(struct script_state *st);
+int buildin_setequipcardid(struct script_state *st);
 int buildin_setpartyinmap(struct script_state *st);
 int buildin_getclassjob(struct script_state *st);
 int buildin_unittalk(struct script_state *st);
@@ -4536,7 +4538,7 @@ struct script_function buildin_func[] = {
 	{buildin_debugmes,"debugmes","s"},
 	{buildin_catchpet,"pet","i"},
 	{buildin_birthpet,"bpet",""},
-	{buildin_resetstatus,"resetstatus",""},
+	{buildin_resetstatus,"resetstatus","*"},
 	{buildin_resetskill,"resetskill","*"},
 	{buildin_changebase,"changebase","i*"},
 	{buildin_changesex,"changesex",""},
@@ -4676,6 +4678,7 @@ struct script_function buildin_func[] = {
 	{buildin_getonlinepartymember,"getonlinepartymember","*"},
 	{buildin_getonlineguildmember,"getonlineguildmember","*"},
 	{buildin_makemerc,"makemerc","ii"},
+	{buildin_delmerc,"delmerc",""},
 	{buildin_openbook,"openbook","i*"},
 	{buildin_pushpc,"pushpc","ii"},
 	{buildin_setcell,"setcell","siii*"},
@@ -4718,6 +4721,7 @@ struct script_function buildin_func[] = {
 	{buildin_mobuseskillpos,"mobuseskillpos","iiiiiii"},
 	{buildin_areamobuseskill,"areamobuseskill","siiiiiiiiiiii"},
 	{buildin_getequipcardid,"getequipcardid","ii"},
+	{buildin_setequipcardid,"setequipcardid","iii*"},
 	{buildin_setpartyinmap,"setpartyinmap","ii"},
 	{buildin_getclassjob,"getclassjob","i"},
 	{buildin_unittalk,"unittalk","*"},
@@ -5293,7 +5297,7 @@ int buildin_heal(struct script_state *st)
 	hp=conv_num(st,& (st->stack->stack_data[st->start+2]));
 	sp=conv_num(st,& (st->stack->stack_data[st->start+3]));
 
-	pc_heal(script_rid2sd(st),hp,sp);
+	pc_heal(script_rid2sd(st),hp,sp,0,0);
 	return 0;
 }
 
@@ -8896,7 +8900,12 @@ int buildin_birthpet(struct script_state *st)
  */
 int buildin_resetstatus(struct script_state *st)
 {
-	pc_resetstate( script_rid2sd(st) );
+	int flag = 0;
+
+	if(st->end > st->start+2)
+		flag = conv_num(st,& (st->stack->stack_data[st->start+2]));
+
+	pc_resetstatus(script_rid2sd(st), flag);
 	return 0;
 }
 
@@ -8906,7 +8915,7 @@ int buildin_resetstatus(struct script_state *st)
  */
 int buildin_resetskill(struct script_state *st)
 {
-	int flag = -1;
+	int flag = 0;
 
 	if(st->end > st->start+2)
 		flag = conv_num(st,& (st->stack->stack_data[st->start+2]));
@@ -13121,6 +13130,21 @@ int buildin_makemerc(struct script_state *st)
 }
 
 /*==========================================
+ * 傭兵を解雇する
+ *------------------------------------------
+ */
+int buildin_delmerc(struct script_state *st)
+{
+	struct map_session_data *sd = script_rid2sd(st);
+
+	nullpo_retr(0, sd);
+
+	merc_menu(sd,2);
+
+	return 0;
+}
+
+/*==========================================
  * 読書ウィンドウの表示
  *------------------------------------------
  */
@@ -14432,6 +14456,49 @@ int buildin_getequipcardid(struct script_state *st)
 }
 
 /*==========================================
+ * 装備の指定スロットのカード付与
+ *------------------------------------------
+ */
+int buildin_setequipcardid(struct script_state *st)
+{
+	int num, pos, card_id, i = -1;
+	int flag = 0;
+	struct map_session_data *sd;
+
+	num = conv_num(st,& (st->stack->stack_data[st->start+2]));
+	pos = conv_num(st,& (st->stack->stack_data[st->start+3]));
+	card_id = conv_num(st,& (st->stack->stack_data[st->start+4]));
+	if(st->end > st->start+5)
+		flag = conv_num(st,& (st->stack->stack_data[st->start+5]));
+	sd  = script_rid2sd(st);
+
+	if(num > 0 && num <= EQUIP_INDEX_MAX)
+		i=pc_checkequip(sd,equip_pos[num-1]);
+	if(pos < 0 || pos >= 4)
+		pos = 0;
+
+	if(i >= 0) {
+		int ep=sd->status.inventory[i].equip;
+		if(itemdb_isspecial(sd->status.inventory[i].card[0])) // 製造・名前入りは不可
+			return 0;
+		if(card_id && itemdb_type(card_id) != ITEMTYPE_CARD) // カードタイプ以外は不可
+			return 0;
+
+		pc_unequipitem(sd,i,0);
+		sd->status.inventory[i].card[pos] = card_id;
+
+		if(flag & 4)
+			sd->status.inventory[i].refine = 0;
+		if(flag & 2)
+			clif_item_preview(sd,i);
+		clif_equiplist(sd);
+		if(flag & 1)
+			pc_equipitem(sd,i,ep);
+	}
+	return 0;
+}
+
+/*==========================================
  * パーティーメンバーへ変数設定
  *------------------------------------------
  */
@@ -15029,7 +15096,7 @@ int buildin_npcwalkto(struct script_state *st)
 int buildin_npcwalkwait(struct script_state *st)
 {
 	struct npc_data *nd;
-	int delay = 0;
+	int delay = 50;
 
 	if(st->end > st->start+2)
 		delay = conv_num(st,& (st->stack->stack_data[st->start+2]));
@@ -15043,16 +15110,27 @@ int buildin_npcwalkwait(struct script_state *st)
 	if(nd->flag&1)
 		return 0;
 
-	if(delay < 0)
-		delay = 0;
+	if(delay < 50)
+		delay = 50;
 
 	if(st->sleep.tick == 0) {
 		// 初回実行
 		int tick = 0;
 		int dist = path_distance(nd->bl.x,nd->bl.y,nd->ud.to_x,nd->ud.to_y);
 
-		// 本来は移動中の斜めと直進の数で待機時間が変わる
-		tick = (nd->speed * dist) * 14 / 10 + delay;
+		// 同軸ならSpeed * 距離
+		if(nd->bl.x == nd->ud.to_x || nd->bl.y == nd->ud.to_y) {
+			tick = nd->speed * dist + delay;
+		} else {
+			int i, c=0, s=0;
+			for(i=0;i<nd->ud.walkpath.path_len;i++) {
+				if(nd->ud.walkpath.path[i]&1)
+					s++;
+				else
+					c++;
+			}
+			tick = nd->speed * c + nd->speed * s * 14 / 10 + delay;
+		}
 
 		if(tick <= 0) {
 			// 何もしない

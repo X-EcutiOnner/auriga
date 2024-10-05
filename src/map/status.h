@@ -22,6 +22,17 @@
 #ifndef _STATUS_H_
 #define _STATUS_H_
 
+// JobDB
+struct job_db {
+	int max_joblv[PC_UPPER_MAX];
+	int max_weight_base;
+	int hp_base[MAX_LEVEL];
+	int sp_base[MAX_LEVEL];
+	int max_ap;
+	int bonus[PC_UPPER_MAX][MAX_LEVEL];
+	int aspd_base[WT_MAX+1];
+} job_db[PC_JOB_MAX];
+
 struct status_pretimer {
 	int timer;
 	int target_id;
@@ -49,14 +60,22 @@ int status_get_range(struct block_list *bl);
 int status_get_group(struct block_list *bl);
 int status_get_hp(struct block_list *bl);
 int status_get_sp(struct block_list *bl);
+int status_get_ap(struct block_list *bl);
 int status_get_max_hp(struct block_list *bl);
 int status_get_max_sp(struct block_list *bl);
+int status_get_max_ap(struct block_list *bl);
 int status_get_str(struct block_list *bl);
 int status_get_agi(struct block_list *bl);
 int status_get_vit(struct block_list *bl);
 int status_get_int(struct block_list *bl);
 int status_get_dex(struct block_list *bl);
 int status_get_luk(struct block_list *bl);
+int status_get_pow(struct block_list *bl);
+int status_get_sta(struct block_list *bl);
+int status_get_wis(struct block_list *bl);
+int status_get_spl(struct block_list *bl);
+int status_get_con(struct block_list *bl);
+int status_get_crt(struct block_list *bl);
 int status_get_hit(struct block_list *bl);
 int status_get_flee(struct block_list *bl);
 int status_get_def(struct block_list *bl);
@@ -71,6 +90,12 @@ int status_get_speed(struct block_list *bl);
 int status_get_adelay(struct block_list *bl);
 int status_get_amotion(struct block_list *bl);
 int status_get_dmotion(struct block_list *bl);
+int status_get_patk(struct block_list *bl);
+int status_get_smatk(struct block_list *bl);
+int status_get_res(struct block_list *bl);
+int status_get_mres(struct block_list *bl);
+int status_get_hplus(struct block_list *bl);
+int status_get_crate(struct block_list *bl);
 int status_get_element(struct block_list *bl);
 int status_get_attack_element(struct block_list *bl);
 int status_get_attack_element2(struct block_list *bl);
@@ -496,9 +521,9 @@ enum {
 	SC_MADNESSCANCEL        = 348,
 	SC_ADJUSTMENT           = 349,
 	SC_INCREASING           = 350,
-	SC_DISARM               = 351,
+	//
 	SC_GATLINGFEVER         = 352,
-	SC_FULLBUSTER           = 353,
+	//
 	SC_TATAMIGAESHI         = 354,
 	SC_UTSUSEMI             = 355,
 	SC_BUNSINJYUTSU         = 356,
@@ -534,22 +559,22 @@ enum {
 	SC_REBIRTH              = 386,
 	SC_HELLPOWER			= 387,
 	SC_ENCHANTBLADE			= 388,
-	SC_BERKANA				= 389,
-	SC_NAUTHIZ				= 390,
-	SC_TURISUSS				= 391,
-	SC_HAGALAZ				= 392,
-	SC_ISHA					= 393,
-	SC_EISIR				= 394,
-	SC_URUZ					= 395,
+	SC_MILLENNIUMSHIELD		= 389,
+	SC_REFRESH				= 390,
+	SC_GIANTGROWTH			= 391,
+	SC_STONEHARDSKIN		= 392,
+	SC_VITALITYACTIVATION	= 393,
+	SC_FIGHTINGSPIRIT		= 394,
+	SC_ABUNDANCE			= 395,
 	SC_DEATHBOUND			= 396,
 	SC_FEAR					= 397,
 	SC_VENOMIMPRESS			= 398,
 	SC_POISONINGWEAPON		= 399,
 	SC_WEAPONBLOCKING		= 400,
-	SC_WEAPONBLOCKING2		= 401,
+	SC_WEAPONBLOCKING_POSTDELAY		= 401,
 	SC_CLOAKINGEXCEED		= 402,
 	SC_HALLUCINATIONWALK	= 403,
-	SC_HALLUCINATIONWALK2	= 404,
+	SC_HALLUCINATIONWALK_POSTDELAY	= 404,
 	SC_ROLLINGCUTTER		= 405,
 	SC_TOXIN				= 406,
 	SC_PARALIZE				= 407,
@@ -591,9 +616,9 @@ enum {
 	SC_INFRAREDSCAN			= 443,
 	SC_ANALYZE				= 444,
 	SC_MAGNETICFIELD		= 445,
-	SC_NEUTRALBARRIER_USER	= 446,
+	SC_NEUTRALBARRIER_MASTER	= 446,
 	SC_NEUTRALBARRIER		= 447,
-	SC_STEALTHFIELD_USER	= 448,
+	SC_STEALTHFIELD_MASTER	= 448,
 	SC_STEALTHFIELD			= 449,
 	SC_MANU_ATK				= 450,
 	SC_MANU_DEF				= 451,
@@ -868,12 +893,16 @@ enum {
 	SC_SOULFALCON			= 720,
 	SC_SOULGOLEM			= 721,
 	SC_SOULDIVISION			= 722,
-	SC_SOULENERGY			= 723,
-	SC_USE_SKILL_SP_SPA		= 724,
-	SC_USE_SKILL_SP_SHA		= 725,
-	SC_SP_SHA				= 726,
+	SC_SWHOO				= 724,
+	SC_SHA					= 726,
 	SC_SOULCURSE			= 727,
-
+	SC_CRUSHSTRIKE			= 728,
+	SC_WEAPONBLOCK_ON		= 729,
+	SC_ADORAMUS				= 730,
+	SC_OVERHEAT_LIMITPOINT	= 731,
+	SC__FEINTBOMB			= 732,
+	SC_MAGICALBULLET		= 733,
+	SC_HELPANGEL			= 734,
 
 	// startでは使えないresistをアイテム側で全てクリアするための物
 	SC_RESISTCLEAR          = 1001,
@@ -1203,31 +1232,31 @@ enum {
 	//SI_ANGEL_PROTECT  = 314,
 	//SI_ENDURE_MDEF    = 315,
 	SI_ENCHANTBLADE		= 316,
-	//SI_DEATHBOUND     = 317,
-	SI_NAUTHIZ			= 318,
-	SI_THURISSUS		= 319,
-	SI_HAGALAZ			= 320,
-	SI_ISA				= 321,
-	SI_OTHILA			= 322,
-	SI_URUZ				= 323,
+	SI_DEATHBOUND		= 317,
+	SI_REFRESH			= 318,
+	SI_GIANTGROWTH		= 319,
+	SI_STONEHARDSKIN	= 320,
+	SI_VITALITYACTIVATION	= 321,
+	SI_FIGHTINGSPIRIT	= 322,
+	SI_ABUNDANCE		= 323,
 	//SI_REUSE_MILLENNIUMSHIELD	= 324,
 	//SI_REUSE_CRUSHSTRIKE	= 325,
 	//SI_REUSE_REFRESH	= 326,
 	//SI_REUSE_STORMBLAST	= 327,
 	SI_VENOMIMPRESS	= 328,
-	//SI_EPICLESIS	= 329,
+	SI_EPICLESIS		= 329,
 	SI_ORATIO			= 330,
-	//SI__LAUDAAGNUS	= 331,
-	//SI_LAUDARAMUS	= 332,
-	SI_POISONINGWEAPON	= 333,
+	SI_LAUDAAGNUS	= 331,
+	SI_LAUDARAMUS	= 332,
+	SI_CLOAKINGEXCEED	= 333,
 	SI_HALLUCINATIONWALK= 334,
-	//SI_HALLUCINATIONWALK_POSTDELAY	= 335,
+	SI_HALLUCINATIONWALK_POSTDELAY	= 335,
 	SI_RENOVATIO		= 336,
 	SI_WEAPONBLOCKING	= 337,
-	//SI_WEAPONBLOCKING_POSTDELAY	= 338,
+	SI_WEAPONBLOCKING_POSTDELAY	= 338,
 	SI_ROLLINGCUTTER	= 339,
 	SI_EXPIATIO			= 340,
-	//SI_POISONINGWEAPON	= 341,
+	SI_POISONINGWEAPON	= 341,
 	SI_TOXIN			= 342,
 	SI_PARALIZE			= 343,
 	SI_VENOMBLEED		= 344,
@@ -1239,13 +1268,13 @@ enum {
 	SI_DUPLELIGHT		= 350,
 	SI_FROSTMISTY		= 351,
 	SI_FEARBREEZE		= 352,
-	//SI_ELECTRICSHOCKER	= 353,
+	SI_ELECTRICSHOCKER	= 353,
 	SI_MARSHOFABYSS		= 354,
 	SI_RECOGNIZEDSPELL	= 355,
-	//SI_STASIS	= 366,
+	SI_STASIS			= 356,
 	SI_WUGRIDER			= 357,
 	SI_WUGDASH			= 358,
-	//SI_WUGBITE	= 359,
+	SI_WUGBITE			= 359,
 	SI_CAMOUFLAGE		= 360,
 	SI_ACCELERATION		= 361,
 	SI_HOVERING			= 362,
@@ -1258,15 +1287,15 @@ enum {
 	//SI_MVPCARD_MISTRESS	= 369,
 	//SI_MVPCARD_ORCHERO	= 370,
 	//SI_MVPCARD_ORCLORD	= 371,
-	//SI_OVERHEAT_LIMITPOINT	= 372,
+	SI_OVERHEAT_LIMITPOINT	= 372,
 	SI_OVERHEAT			= 373,
 	SI_SHAPESHIFT		= 374,
 	SI_INFRAREDSCAN		= 375,
-	//SI_MAGNETICFIELD	= 376,
+	SI_MAGNETICFIELD	= 376,
 	SI_NEUTRALBARRIER	= 377,
-	//SI_NEUTRALBARRIER_MASTER	= 378,
+	SI_NEUTRALBARRIER_MASTER	= 378,
 	SI_STEALTHFIELD		= 379,
-	//SI_STEALTHFIELD_MASTER	= 380,
+	SI_STEALTHFIELD_MASTER	= 380,
 	SI_MANU_ATK			= 381,
 	SI_MANU_DEF			= 382,
 	SI_SPL_ATK			= 383,
@@ -1287,7 +1316,7 @@ enum {
 	SI_SHIELDSPELL_REF	= 398,
 	SI_BODYPAINT		= 399,
 	SI_EXEEDBREAK		= 400,
-	//SI_ADORAMUS		= 401,
+	SI_ADORAMUS			= 401,
 	SI_PRESTIGE			= 402,
 	SI_INVISIBILITY		= 403,
 	SI_DEADLYINFECT		= 404,
@@ -1495,7 +1524,7 @@ enum {
 	//SI_BEER_BOTTLE_CAP	= 617,
 	SI_OVERLAPEXPUP	= 618,
 	//SI_PC_IZ_DUN05	= 619,
-	//SI_CRUSHSTRIKE	= 620,
+	SI_CRUSHSTRIKE	= 620,
 	SI_MONSTER_TRANSFORM	= 621,
 	SI_SIT	= 622,
 	//SI_ONAIR	= 623,
@@ -1804,7 +1833,7 @@ enum {
 	//SI_EP16_2_BUFF_SS = 963,
 	//SI_EP16_2_BUFF_SC = 964,
 	//SI_EP16_2_BUFF_AC = 965,
-	//SI_GS_MAGICAL_BULLET = 966,
+	SI_GS_MAGICAL_BULLET = 966,
 
 	//SI_FALLEN_ANGEL = 976,
 
@@ -1869,25 +1898,25 @@ enum {
 	SI_SOULFALCON = 1058,
 	SI_SOULGOLEM = 1059,
 	SI_SOULDIVISION = 1060,
-	SI_SOULENERGY = 1061,
-	SI_USE_SKILL_SP_SPA = 1062,
-	SI_USE_SKILL_SP_SHA = 1063,
-	SI_SP_SHA = 1064,
+	//SI_SOULENERGY = 1061,
+	//SI_USE_SKILL_SP_SPA = 1062,
+	//SI_USE_SKILL_SP_SHA = 1063,
+	SI_SHA = 1064,
 	//SI_INFINITY_DRINK = 1065,
 	//SI_HUNTING_EVENT = 1083,
 	//SI_ENSEMBLEFATIGUE = 1088,
 	//SI_ADAPTATION = 1089,
 	//SI_ANCILLA = 1095,
-	//SI_WEAPONBLOCK_ON = 1107,
+	SI_WEAPONBLOCK_ON = 1107,
 	//SI_ASSUMPTIO_BUFF = 1121,
 	//SI_BASILICA_BUFF = 1122,
 	//SI_OVERLAPEXPUP2 = 1123,
-	//SI_SOULCURSE = 1125,
+	SI_SOULCURSE = 1125,
 	//SI_SOUND_OF_DESTRUCTION = 1126,
 	//SI_SWEETSFAIR_ATK = 1132,
 	//SI_SWEETSFAIR_MATK = 1133,
 	//SI_NV_BREAKTHROUGH = 1129,
-	//SI_HELPANGEL = 1130,
+	SI_HELPANGEL = 1130,
 	//SI_NV_TRANSCENDENCE = 1131,
 	//SI_FLOWER_LEAF2 = 1135,
 	//SI_FLOWER_LEAF3 = 1136,
@@ -2157,6 +2186,17 @@ enum {
 	MD_TARGETLOWERLEVEL		= 0x800,
 	MD_ANGRY				= 0x1000,
 	MD_SKILLIMMUNITY		= 0x2000,
+	MD_STATUSCHANGEIMMUNITY	= 0x4000,
+	MD_RANDOMTARGET			= 0x8000,
+	MD_IGNORE_MELEE			= 0x10000,
+	MD_IGNORE_MAGIC			= 0x20000,
+	MD_IGNORE_RANGED		= 0x40000,
+	MD_IGNORE_MISC			= 0x80000,
+	MD_DETECTOR				= 0x100000,
+	MD_KNOCKBACKIMMUNITY	= 0x200000,
+	MD_DAMAGEREDUCTION_10	= 0x400000,
+	MD_DAMAGEREDUCTION_100	= 0x800000,
+	MD_DAMAGEREDUCTION_1000	= 0x1000000,
 };
 
 // ModeOptテーブル

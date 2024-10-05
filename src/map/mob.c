@@ -555,7 +555,7 @@ static int mob_can_lock(struct mob_data *md, struct block_list *bl)
 
 	if( tsc && (tsc->data[SC_TRICKDEAD].timer != -1 || tsc->data[SC_FORCEWALKING].timer != -1) )
 		return 0;
-	if( !(mode&MD_BOSS) && tsc && ( ((tsc->option&(OPTION_HIDE | OPTION_CLOAKING | OPTION_FOOTPRINT)) || tsc->data[SC_CAMOUFLAGE].timer != -1) &&
+	if( !(mode&MD_BOSS) && !(mode&MD_DETECTOR) && tsc && ( ((tsc->option&(OPTION_HIDE | OPTION_CLOAKING | OPTION_FOOTPRINT)) || tsc->data[SC_CAMOUFLAGE].timer != -1) &&
 		((race != RCT_INSECT && race != RCT_DEMON) || tsc->data[SC_CLOAKINGEXCEED].timer != -1 || tsc->data[SC_NEWMOON].timer != -1 || tsc->data[SC_STEALTHFIELD].timer != -1)
 		|| tsc->data[SC_SUHIDE].timer != -1) )
 		return 0;
@@ -2006,7 +2006,7 @@ static int mob_dead(struct block_list *src,struct mob_data *md,int type,unsigned
 			sp = sd->sp_drain_value_race[race_id];
 
 		if(hp || sp)
-			pc_heal(sd,hp,sp);
+			pc_heal(sd,hp,sp,0,0);
 
 		// 傭兵のキルカウント増加
 		if(sd->mcd)

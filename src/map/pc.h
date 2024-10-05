@@ -25,7 +25,7 @@
 #include "utils.h"
 #include "map.h"
 
-#define MAX_SKILL_TREE 100
+#define MAX_SKILL_TREE 120
 
 enum {
 	LOOK_BASE = 0,
@@ -68,8 +68,10 @@ enum {
 int pc_is50overweight(struct map_session_data *sd);
 int pc_is90overweight(struct map_session_data *sd);
 
+extern int stpoint_table[MAX_LEVEL];
+extern int tstpoint_table[MAX_LEVEL];
+
 extern int attr_fix_table[MAX_ELE_LEVEL][ELE_MAX][ELE_MAX];
-extern int max_job_table[PC_UPPER_MAX][PC_JOB_MAX];
 
 int pc_get_skilltree_max(struct pc_base_job *bj,int skillid);
 
@@ -136,20 +138,23 @@ int pc_exp_penalty(struct map_session_data *sd, struct map_session_data *ssd, in
 atn_bignumber pc_nextbaseexp(struct map_session_data *);
 atn_bignumber pc_nextjobexp(struct map_session_data *);
 int pc_need_status_point(struct map_session_data *,int);
+int pc_need_tstatus_point(struct map_session_data *,int);
 void pc_statusup(struct map_session_data *sd, unsigned short type,int num);
 int pc_statusup2(struct map_session_data*,int,int);
+void pc_tstatusup(struct map_session_data *sd, int type,int num);
 void pc_skillup(struct map_session_data *sd, int skill_num);
 int pc_allskillup(struct map_session_data* sd,int flag);
-void pc_resetstate(struct map_session_data* sd);
+void pc_resetstatus(struct map_session_data* sd, int flag);
 void pc_resetskill(struct map_session_data* sd, int flag);
 void pc_costumelook(struct map_session_data *sd);
+void pc_changebodystyle(struct map_session_data *sd);
 void pc_equipitem(struct map_session_data*, int n, int pos);
 void pc_unequipitem(struct map_session_data*, int n, int type);
 int pc_equippeditem(struct map_session_data *sd,int id);
 void pc_useitem(struct map_session_data*, int n);
 
 int pc_damage(struct block_list *,struct map_session_data*,int);
-int pc_heal(struct map_session_data *,int,int);
+int pc_heal(struct map_session_data *,int,int,int,int);
 int pc_itemheal(struct map_session_data *sd,int hp,int sp);
 int pc_percentheal(struct map_session_data *sd,int,int);
 int pc_jobchange(struct map_session_data *,int, int);
@@ -222,23 +227,36 @@ int pc_check_guild_skill_effective_range(struct map_session_data *sd);
 #define pc_is1stclass(sd) (((sd)->s_class.job >= PC_JOB_SM && (sd)->s_class.job <= PC_JOB_TF) ||	\
 						   (sd)->s_class.job == PC_JOB_SNV || (sd)->s_class.job == PC_JOB_TK ||	\
 						   (sd)->s_class.job == PC_JOB_GS || (sd)->s_class.job == PC_JOB_NJ ||		\
-						   (sd)->s_class.job == PC_JOB_MB || (sd)->s_class.job == PC_JOB_ESNV)
+						   (sd)->s_class.job == PC_JOB_MB || (sd)->s_class.job == PC_JOB_SUM)
 
 #define pc_is2ndclass(sd) (((sd)->s_class.job >= PC_JOB_KN && (sd)->s_class.job <= PC_JOB_DC) ||	\
 						   (sd)->s_class.job == PC_JOB_SG || (sd)->s_class.job == PC_JOB_SL ||		\
 						   (sd)->s_class.job == PC_JOB_DK || (sd)->s_class.job == PC_JOB_DA ||	\
 						   (sd)->s_class.job == PC_JOB_KG || (sd)->s_class.job == PC_JOB_OB ||	\
-						   (sd)->s_class.job == PC_JOB_RL)
+						   (sd)->s_class.job == PC_JOB_RL || (sd)->s_class.job == PC_JOB_ESNV || \
+						   (sd)->s_class.job == PC_JOB_SH)
 
 #define pc_is3rdclass(sd) (((sd)->s_class.job >= PC_JOB_RK && (sd)->s_class.job <= PC_JOB_SC) || \
-						   (sd)->s_class.job == PC_JOB_SE || (sd)->s_class.job == PC_JOB_RE )
+						   (sd)->s_class.job == PC_JOB_SE  || (sd)->s_class.job == PC_JOB_RE || \
+						   (sd)->s_class.job == PC_JOB_SKE || (sd)->s_class.job == PC_JOB_SOA)
 
-#define pc_isdoram(sd) ((sd)->s_class.job == PC_JOB_SUM)
+#define pc_istaekwon(sd) ((sd)->s_class.job == PC_JOB_TK  || \
+						  (sd)->s_class.job == PC_JOB_SG  || (sd)->s_class.job == PC_JOB_SL  || \
+						  (sd)->s_class.job == PC_JOB_SKE || (sd)->s_class.job == PC_JOB_SOA)
+
+#define pc_isexclass(sd) ((sd)->s_class.job == PC_JOB_NJ || (sd)->s_class.job == PC_JOB_GS || \
+						  (sd)->s_class.job == PC_JOB_KG || (sd)->s_class.job == PC_JOB_OB || (sd)->s_class.job == PC_JOB_RL || \
+						  (sd)->s_class.job == PC_JOB_SK || (sd)->s_class.job == PC_JOB_SN || (sd)->s_class.job == PC_JOB_NW)
+
+#define pc_issnovice(sd) ((sd)->s_class.job == PC_JOB_SNV || (sd)->s_class.job == PC_JOB_ESNV  || (sd)->s_class.job == PC_JOB_HN)
+
+#define pc_isdoram(sd) ((sd)->s_class.job == PC_JOB_SUM || (sd)->s_class.job == PC_JOB_SH)
 
 struct pc_base_job pc_calc_base_job(int b_class);
 int pc_calc_class_job(int job,int upper);
 int pc_calc_job_class(int class_);
 int pc_get_base_class(int class_, int type);
+int pc_get_base_job(int job, int type);
 unsigned int pc_get_job_bit(int job);
 
 void pc_read_gm_account(void);
@@ -250,6 +268,8 @@ int pc_addcoin(struct map_session_data *sd,int,int);
 int pc_delcoin(struct map_session_data *sd,int,int);
 int pc_addelementball(struct map_session_data *sd, int interval, int max, short ele);
 int pc_delelementball(struct map_session_data *sd, int count, int type);
+int pc_addsoulenergy(struct map_session_data *sd,int interval,int num);
+int pc_delsoulenergy(struct map_session_data *sd,int count,int type);
 
 int pc_upgrade_item(struct map_session_data *sd, int nameid, int idx);
 

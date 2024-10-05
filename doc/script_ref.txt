@@ -168,11 +168,21 @@ AurigaNPCScript
 
 	＊スクリプト：NPCを作成します。
 		<gatname>,<x>,<y>,<direction><tab>script<tab><displayname><tab><npcid>,<xs>,<ys>,{ <script> ... }
+		<gatname>,<x>,<y>,<direction><tab>script2<tab><displayname><tab><npcid>,<xs>,<ys>,{ <script> ... }
+		<gatname>,<x>,<y>,<direction><tab>script(<state>)<tab><displayname><tab><npcid>,<xs>,<ys>,{ <script> ... }
+		<gatname>,<x>,<y>,<direction><tab>script2(<state>)<tab><displayname><tab><npcid>,<xs>,<ys>,{ <script> ... }
+
+		script		通常NPCを記述する際に指定します。
+		script2		専用モーションのある移動NPCの場合指定します。
 
 		gatname			配置するMAPファイル名を指定します。
 		x			配置する横座標を指定する。
 		y			配置する縦座標を指定する。
 		direction		向きを指定します。
+		state			初期配置の状態を指定します。
+						DISABLED	無効状態
+						HIDDEN		ハイディング状態
+						CLOAKED		クローキング状態
 		displayname		配置するNPCの表示名を指定します。npcidが-1の場合、イベント名となります。
 					同表示名別動作イベントを作る場合、表示名::識別子と記述することができます。
 		npcid			配置するNPCの表示スプライトIDを指定します。-1を指定するとmap内イベントになります。
@@ -1439,12 +1449,13 @@ AurigaNPCScript
 			resetskill [<flag>];
 
 			flag		数値、省略可
-				 0	クエストスキルはリセットしない
-				 1	クエストスキルもリセットする
-				-1	battle_auriga.confのquest_skill_resetに従う
+				 0	クエストスキルと基本スキルはリセットしない
+				 1	クエストスキルもリセット、基本スキルはリセットしない
+				 2	基本スキルもリセット、クエストスキルはリセットしない
+				 3	クエストスキルも基本スキルも全てリセットする
 
 			スキルポイントをリセットします。
-			<flag>を省略した場合は-1になります。
+			<flag>を省略した場合は0になります。
 
 		statusup命令
 			statusup <st>;
@@ -2099,6 +2110,21 @@ AurigaNPCScript
 			<position>が0のときは全てのカードを取り除きます。
 			1～4の数字を指定した場合はその箇所のカードのみを取り除くことができます。
 
+		setequipcardid命令
+			setequipcardid(<num>,<pos>,<card_id>[,<flag>])
+
+			<num>		1-22までの整数を指定します。詳しくはgetequipidを参照のこと。
+			<pos>		0-3までの整数を指定します。
+			<card_id>	整数
+			<flag>		以下の数値を加算して指定、省略可
+					　0x1	装備を再装着
+					　0x2	更新後装備をプレビュー表示
+					　0x4	精練値を0にする
+
+			指定した部位のアイテムの<pos>に刺さっているカードを<card_id>にした後<flag>の動作をします
+			<card_id>が0の場合、カードは削除されます
+			<flag>を省略した場合、追加動作しません
+
 		wedding命令
 			wedding;
 
@@ -2351,6 +2377,11 @@ AurigaNPCScript
 			time		召喚時間（秒）
 
 			<merc_id>で指定した傭兵を<time>秒の間召喚します。
+
+		delmerc命令
+			delmerc;
+
+			傭兵を解雇します。
 
 		openbook命令
 			openbook <itemid>[,<page>];
@@ -2768,6 +2799,44 @@ AurigaNPCScript
 
 			<itemid>使用時のupgradeウインドウを開く。
 			upgrade完了後に<itemid>は1個消費されるためNonconsumeフラグを立ててください。
+
+		npcwalkto命令
+			npcwalkto <x>,<y>[,<name>];
+
+			x,y			数値
+			name		文字列、省略可
+
+			<name>で指定したNPCを<x>,<y>座標まで歩かせます。
+			<name>を省略すると、命令を実行したNPCが対象になります。
+
+		npcwalkwait命令
+			npcwalkwait [<ms>[,<name>]];
+
+			ms			数値
+			name		文字列、省略可
+
+			スクリプトの実行を歩行時間+<ms>の間停止します。
+			<name>を省略すると、命令を実行したNPCが対象になります。
+
+		setnpcspeed命令
+			setnpcspeed <speed>[,<name>];
+
+			speed		数値
+			name		文字列、省略可
+
+			NPCの移動速度を設定します。
+			初期値は200。
+			<name>を省略すると、命令を実行したNPCが対象になります。
+
+		npcclickable命令
+			npcclickable <flag>[,<name>];
+
+			flag		数値
+			name		文字列、省略可
+
+			NPCが移動中のクリック応答を許可するかどうか。
+			0で非許可、1で許可。初期値は0。
+			<name>を省略すると、命令を実行したNPCが対象になります。
 
 		setnpcgroup命令
 			setnpcgroup <group_id>[,<name>];

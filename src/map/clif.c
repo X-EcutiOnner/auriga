@@ -77,7 +77,7 @@
 #include "luascript.h"
 
 /* パケットデータベース */
-#define MAX_PACKET_DB 0xBF0
+#define MAX_PACKET_DB 0xC20
 
 struct packet_db {
 	short len;
@@ -2716,8 +2716,10 @@ static int clif_npc0078(struct npc_data *nd,unsigned char *buf,struct map_sessio
 	if(sd && option&OPTION_CLOAKING) {
 		int i;
 		for(i=0; i < MAX_CLOAKEDNPC; i++) {
-			if(sd->cloaked_npc[i] == nd->bl.id)
+			if(sd->cloaked_npc[i] == nd->bl.id) {
 				option &= ~OPTION_CLOAKING;
+				break;
+			}
 		}
 	}
 #if PACKETVER < 20071106
@@ -3013,8 +3015,10 @@ static int clif_npc007b(struct npc_data *nd,unsigned char *buf,struct map_sessio
 	if(sd && option&OPTION_CLOAKING) {
 		int i;
 		for(i=0; i < MAX_CLOAKEDNPC; i++) {
-			if(sd->cloaked_npc[i] == nd->bl.id)
+			if(sd->cloaked_npc[i] == nd->bl.id) {
 				option &= ~OPTION_CLOAKING;
+				break;
+			}
 		}
 	}
 
@@ -5077,6 +5081,22 @@ static void clif_elementball_id(const int fd, struct map_session_data *dstsd)
 }
 
 /*==========================================
+ * ソウルエナジー表示(ID指定送信)
+ *------------------------------------------
+ */
+static void clif_soulenergy_id(const int fd, struct map_session_data *dstsd)
+{
+	nullpo_retv(dstsd);
+
+	WFIFOW(fd,0)=0xb73;
+	WFIFOL(fd,2)=dstsd->bl.id;
+	WFIFOW(fd,6)=dstsd->soulenergy.num;
+	WFIFOSET(fd,packet_db[0xb73].len);
+
+	return;
+}
+
+/*==========================================
  *
  *------------------------------------------
  */
@@ -5200,8 +5220,10 @@ void clif_spawnpc(struct map_session_data *sd)
 		clif_coin(sd);
 	if(sd->elementball.num > 0)	// 影狼・朧の球体表示
 		clif_elementball(sd);
-	if(sd->sc.data[SC_BERKANA].timer != -1)
-		clif_mshield(sd,sd->sc.data[SC_BERKANA].val2);
+	if(sd->soulenergy.num > 0)
+		clif_soulenergy(sd);
+	if(sd->sc.data[SC_MILLENNIUMSHIELD].timer != -1)
+		clif_mshield(sd,sd->sc.data[SC_MILLENNIUMSHIELD].val2);
 	if(sd->sc.data[SC_FORCEOFVANGUARD].timer != -1)
 		clif_mshield(sd,sd->sc.data[SC_FORCEOFVANGUARD].val4);
 	if(sd->view_size!=0)
@@ -9612,6 +9634,46 @@ void clif_updatestatus(struct map_session_data *sd, int type)
 	case SP_MATK2:
 		WFIFOL(fd,4)=sd->matk2;
 		break;
+#if PACKETVER >= 20200916
+	case SP_PATK:
+		WFIFOL(fd,4)=sd->patk;
+		break;
+	case SP_SMATK:
+		WFIFOL(fd,4)=sd->smatk;
+		break;
+	case SP_RES:
+		WFIFOL(fd,4)=sd->res;
+		break;
+	case SP_MRES:
+		WFIFOL(fd,4)=sd->mres;
+		break;
+	case SP_HPLUS:
+		WFIFOL(fd,4)=sd->hplus;
+		break;
+	case SP_CRATE:
+		WFIFOL(fd,4)=sd->crate;
+		break;
+	case SP_TSTATUSPOINT:
+		WFIFOL(fd,4)=sd->status.tstatus_point;
+		break;
+	case SP_AP:
+		WFIFOL(fd,4)=sd->status.ap;
+		break;
+	case SP_MAXAP:
+		WFIFOL(fd,4)=sd->status.max_ap;
+		break;
+#else
+	case SP_PATK:
+	case SP_SMATK:
+	case SP_RES:
+	case SP_MRES:
+	case SP_HPLUS:
+	case SP_CRATE:
+	case SP_TSTATUSPOINT:
+	case SP_AP:
+	case SP_MAXAP:
+		return;
+#endif
 
 		// 00b1
 	case SP_ZENY:
@@ -9669,6 +9731,26 @@ void clif_updatestatus(struct map_session_data *sd, int type)
 		WFIFOB(fd,4)=pc_need_status_point(sd,type-SP_USTR+SP_STR);
 		len=5;
 		break;
+#if PACKETVER >= 20200916
+	case SP_UPOW:
+	case SP_USTA:
+	case SP_UWIS:
+	case SP_USPL:
+	case SP_UCON:
+	case SP_UCRT:
+		WFIFOW(fd,0)=0xbe;
+		WFIFOB(fd,4)=pc_need_tstatus_point(sd,type-SP_UPOW+SP_POW);
+		len=5;
+		break;
+#else
+	case SP_UPOW:
+	case SP_USTA:
+	case SP_UWIS:
+	case SP_USPL:
+	case SP_UCON:
+	case SP_UCRT:
+		return;
+#endif
 
 		// 013a
 	case SP_ATTACKRANGE:
@@ -9720,7 +9802,60 @@ void clif_updatestatus(struct map_session_data *sd, int type)
 		WFIFOL(fd,10)=sd->paramb[5] + sd->parame[5];
 		len=14;
 		break;
+#if PACKETVER >= 20200916
+	case SP_POW:
+		WFIFOW(fd,0)=0x141;
+		WFIFOL(fd,2)=type;
+		WFIFOL(fd,6)=sd->status.pow;
+		WFIFOL(fd,10)=sd->paramb[6] + sd->parame[6];
+		len=14;
+		break;
+	case SP_STA:
+		WFIFOW(fd,0)=0x141;
+		WFIFOL(fd,2)=type;
+		WFIFOL(fd,6)=sd->status.sta;
+		WFIFOL(fd,10)=sd->paramb[7] + sd->parame[7];
+		len=14;
+		break;
+	case SP_WIS:
+		WFIFOW(fd,0)=0x141;
+		WFIFOL(fd,2)=type;
+		WFIFOL(fd,6)=sd->status.wis;
+		WFIFOL(fd,10)=sd->paramb[8] + sd->parame[8];
+		len=14;
+		break;
+	case SP_SPL:
+		WFIFOW(fd,0)=0x141;
+		WFIFOL(fd,2)=type;
+		WFIFOL(fd,6)=sd->status.spl;
+		WFIFOL(fd,10)=sd->paramb[9] + sd->parame[9];
+		len=14;
+		break;
+	case SP_CON:
+		WFIFOW(fd,0)=0x141;
+		WFIFOL(fd,2)=type;
+		WFIFOL(fd,6)=sd->status.con;
+		WFIFOL(fd,10)=sd->paramb[10] + sd->parame[10];
+		len=14;
+		break;
+	case SP_CRT:
+		WFIFOW(fd,0)=0x141;
+		WFIFOL(fd,2)=type;
+		WFIFOL(fd,6)=sd->status.crt;
+		WFIFOL(fd,10)=sd->paramb[11] + sd->parame[11];
+		len=14;
+		break;
+#else
+	case SP_POW:
+	case SP_STA:
+	case SP_WIS:
+	case SP_SPL:
+	case SP_CON:
+	case SP_CRT:
+		return;
+#endif
 
+		// 0121
 	case SP_CARTINFO:
 		WFIFOW(fd,0)=0x121;
 		WFIFOW(fd,2)=sd->cart_num;
@@ -10102,7 +10237,7 @@ void clif_poison_list(struct map_session_data *sd, short lv)
 		sd->skill_menu.id = GC_POISONINGWEAPON;
 		sd->skill_menu.lv = lv;
 	} else {
-		clif_skill_fail(sd,GC_POISONINGWEAPON,0x2b,0,0);
+		clif_skill_fail(sd,GC_POISONINGWEAPON,SKILLFAIL_GC_POISON,0,0);
 	}
 
 	return;
@@ -10166,7 +10301,7 @@ void clif_reading_sb_list(struct map_session_data *sd)
 		sd->skill_menu.id = WL_READING_SB;
 		sd->skill_menu.lv = 1;
 	} else {
-		clif_skill_fail(sd,WL_READING_SB,0x33,0,0);
+		clif_skill_fail(sd,WL_READING_SB,SKILLFAIL_SPELLBOOK,0,0);
 	}
 
 	return;
@@ -10229,7 +10364,7 @@ void clif_magicdecoy_list(struct map_session_data *sd, short lv, short x, short 
 		sd->skill_menu.lv = lv;
 		sd->skill_menu.val = (x<<16)|y;
 	} else {
-		clif_skill_fail(sd,NC_MAGICDECOY,3,0,0);
+		clif_skill_fail(sd,NC_MAGICDECOY,SKILLFAIL_MATERIAL,0,0);
 	}
 
 	return;
@@ -10444,7 +10579,7 @@ void clif_changeoption(struct block_list* bl)
 		sd = (struct map_session_data *)bl;
 	if(sd) {
 		clif_changelook(&sd->bl,LOOK_BASE,sd->view_class);
-		clif_changelook(&sd->bl,LOOK_BODY2,sd->status.style);
+		pc_changebodystyle(sd);
 	}
 
 #if PACKETVER < 7
@@ -10487,7 +10622,7 @@ void clif_changeoption_single(struct block_list* bl, struct map_session_data *ts
 		sd = (struct map_session_data *)bl;
 	if(sd) {
 		clif_changelook(&sd->bl,LOOK_BASE,sd->view_class);
-		clif_changelook(&sd->bl,LOOK_BODY2,sd->status.style);
+		pc_changebodystyle(sd);
 	}
 
 	fd=tsd->fd;
@@ -11889,6 +12024,11 @@ static void clif_getareachar_pc(struct map_session_data* sd,struct map_session_d
 		clif_elementball_id(sd->fd,dstsd);
 	}
 
+	// ソウルエナジー表示
+	if(dstsd->soulenergy.num > 0) {
+		clif_soulenergy_id(sd->fd,dstsd);
+	}
+
 	if(sd->status.manner < 0)
 		clif_changestatus(&sd->bl,SP_MANNER,sd->status.manner);
 	if(dstsd->view_size != 0)
@@ -12712,7 +12852,7 @@ static void clif_skillinfo(struct map_session_data *sd, int skillid, int type, i
 
 	nullpo_retv(sd);
 
-	if( skillid < MAX_FOURTH_SKILLID && skillid!=sd->skill_clone.id && (id=sd->status.skill[skillid].id) <= 0 )
+	if( skillid < MAX_PCSKILL && skillid!=sd->skill_clone.id && (id=sd->status.skill[skillid].id) <= 0 )
 		return;
 	if( skillid >= HOM_SKILLID && skillid <= MAX_HOM_SKILLID && !sd->hd )
 		return;
@@ -14441,7 +14581,7 @@ void clif_item_repair_list(struct map_session_data *sd, struct map_session_data 
 		sd->skill_menu.lv = 1;
 		sd->skill_menu.val = dstsd->bl.id;
 	}else
-		clif_skill_fail(sd,sd->ud.skillid,0,0,0);
+		clif_skill_fail(sd,sd->ud.skillid,SKILLFAIL_FAILED,0,0);
 
 	return;
 }
@@ -20756,12 +20896,12 @@ void clif_autoshadowspell(struct map_session_data *sd, short lv)
 	fd=sd->fd;
 	WFIFOW(fd, 0)=0x442;
 
-	if(skill_get_skill_type(sd->skill_clone.id) == BF_MAGIC && sd->skill_clone.id < THIRD_SKILLID) {
+	if(skill_db[skill_get_skilldb_id( sd->skill_clone.id )].autoshadowspell) {
 		WFIFOW(fd,8+c*2) = sd->skill_clone.id;
 		c++;
 	}
 
-	if(skill_get_skill_type(sd->skill_reproduce.id) == BF_MAGIC && sd->skill_reproduce.id < THIRD_SKILLID) {
+	if(skill_db[skill_get_skilldb_id( sd->skill_reproduce.id )].autoshadowspell) {
 		WFIFOW(fd,8+c*2) = sd->skill_reproduce.id;
 		c++;
 	}
@@ -20774,7 +20914,7 @@ void clif_autoshadowspell(struct map_session_data *sd, short lv)
 		sd->skill_menu.id = SC_AUTOSHADOWSPELL;
 		sd->skill_menu.lv = lv;
 	} else {
-		clif_skill_fail(sd,SC_AUTOSHADOWSPELL,0x15,0,0);
+		clif_skill_fail(sd,SC_AUTOSHADOWSPELL,SKILLFAIL_CLONESKILL,0,0);
 	}
 
 	return;
@@ -22093,6 +22233,42 @@ void clif_lapineupgradeack(struct map_session_data *sd, int result)
 }
 
 /*==========================================
+ *
+ *------------------------------------------
+ */
+void clif_unequipitemallack(struct map_session_data *sd, unsigned char ok)
+{
+	int fd;
+
+	nullpo_retv(sd);
+
+	fd=sd->fd;
+	WFIFOW(fd,0)=0xbae;
+	WFIFOB(fd,8)=ok;
+	WFIFOSET(fd,packet_db[0xbae].len);
+
+	return;
+}
+
+/*==========================================
+ * ソウルエナジー表示
+ *------------------------------------------
+ */
+void clif_soulenergy(struct map_session_data *sd)
+{
+	unsigned char buf[10];
+
+	nullpo_retv(sd);
+
+	WBUFW(buf,0)=0xb73;
+	WBUFL(buf,2)=sd->bl.id;
+	WBUFW(buf,6)=sd->soulenergy.num;
+	clif_send(buf,packet_db[0xb73].len,&sd->bl,AREA);
+
+	return;
+}
+
+/*==========================================
  * send packet デバッグ用
  *------------------------------------------
  */
@@ -22355,6 +22531,23 @@ static void clif_parse_LoadEndAck(int fd,struct map_session_data *sd, int cmd)
 		clif_updatestatus(sd,SP_NEXTJOBEXP);
 		clif_updatestatus(sd,SP_SKILLPOINT);
 		clif_initialstatus(sd);
+#if PACKETVER >= 20200916
+		clif_updatestatus(sd,SP_PATK);
+		clif_updatestatus(sd,SP_SMATK);
+		clif_updatestatus(sd,SP_RES);
+		clif_updatestatus(sd,SP_MRES);
+		clif_updatestatus(sd,SP_HPLUS);
+		clif_updatestatus(sd,SP_CRATE);
+		clif_updatestatus(sd,SP_TSTATUSPOINT);
+		clif_updatestatus(sd,SP_AP);
+		clif_updatestatus(sd,SP_MAXAP);
+		clif_updatestatus(sd,SP_UPOW);
+		clif_updatestatus(sd,SP_USTA);
+		clif_updatestatus(sd,SP_UWIS);
+		clif_updatestatus(sd,SP_USPL);
+		clif_updatestatus(sd,SP_UCON);
+		clif_updatestatus(sd,SP_UCRT);
+#endif
 		clif_send_personalinfo(sd);
 
 		// キラー情報送信
@@ -22374,6 +22567,14 @@ static void clif_parse_LoadEndAck(int fd,struct map_session_data *sd, int cmd)
 	clif_updatestatus(sd,SP_INT);
 	clif_updatestatus(sd,SP_DEX);
 	clif_updatestatus(sd,SP_LUK);
+#if PACKETVER >= 20200916
+	clif_updatestatus(sd,SP_POW);
+	clif_updatestatus(sd,SP_STA);
+	clif_updatestatus(sd,SP_WIS);
+	clif_updatestatus(sd,SP_SPL);
+	clif_updatestatus(sd,SP_CON);
+	clif_updatestatus(sd,SP_CRT);
+#endif
 
 	// view equipment item
 #if PACKETVER < 4
@@ -22802,7 +23003,7 @@ static void clif_parse_Emotion(int fd,struct map_session_data *sd, int cmd)
 			clif_send(WFIFOP(fd,0),packet_db[0xc0].len,&sd->bl,AREA);
 		}
 	} else {
-		clif_skill_fail(sd,1,0,1,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,1,0);
 	}
 
 	return;
@@ -22875,7 +23076,7 @@ static void clif_parse_ActionRequest(int fd,struct map_session_data *sd, int cmd
 
 		if(!battle_config.sdelay_attack_enable && pc_checkskill(sd,SA_FREECAST) <= 0 ) {
 			if(DIFF_TICK(tick , sd->ud.canact_tick) < 0) {
-				clif_skill_fail(sd,1,4,0,0);
+				clif_skill_fail(sd,1,SKILLFAIL_INTERVAL,0,0);
 				return;
 			}
 		}
@@ -22897,7 +23098,7 @@ static void clif_parse_ActionRequest(int fd,struct map_session_data *sd, int cmd
 			clif_sitting(&sd->bl, 1);
 			skill_sit(sd,1);	// ギャングスターパラダイスおよびテコン休息設定
 		} else {
-			clif_skill_fail(sd,1,0,2,0);
+			clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,2,0);
 		}
 		break;
 	case 0x03:	// standup
@@ -23166,7 +23367,6 @@ static void clif_parse_UseItem(int fd,struct map_session_data *sd, int cmd)
 	    sd->sc.data[SC_TRICKDEAD].timer != -1 ||	// 死んだふり
 	    sd->sc.data[SC_FORCEWALKING].timer != -1 ||	// 強制移動中
 	    sd->sc.data[SC_BERSERK].timer != -1 ||	// バーサーク
-	    sd->sc.data[SC_FULLBUSTER].timer != -1 ||	// フルバスター
 	    sd->sc.data[SC_WEDDING].timer != -1 ||	// 結婚衣装
 	    sd->sc.data[SC_NOCHAT].timer != -1 ||	// 会話禁止
 	    sd->sc.data[SC_GRAVITATION_USER].timer != -1 ||	// グラビテーションフィールド使用者
@@ -23506,12 +23706,12 @@ static void clif_parse_CreateChatRoom(int fd,struct map_session_data *sd, int cm
 	nullpo_retv(sd);
 
 	if(sd->status.manner < 0 || (battle_config.basic_skill_check && pc_checkskill(sd,NV_BASIC) < 4 && !pc_checkskill(sd,SU_BASIC_SKILL))) {
-		clif_skill_fail(sd,1,0,3,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,3,0);
 		return;
 	}
 
 	if(npc_isnear(&sd->bl)) {
-		clif_skill_fail(sd,1,83,0,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_NEARNPC,0,0);
 		return;
 	}
 
@@ -23612,7 +23812,7 @@ static void clif_parse_TradeRequest(int fd,struct map_session_data *sd, int cmd)
 	if(battle_config.basic_skill_check == 0 || pc_checkskill(sd,NV_BASIC) >= 1 || pc_checkskill(sd,SU_BASIC_SKILL))
 		trade_traderequest(sd,RFIFOL(sd->fd,GETPACKETPOS(cmd,0)));
 	else
-		clif_skill_fail(sd,1,0,0,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,0,0);
 
 	return;
 }
@@ -23925,7 +24125,7 @@ static void clif_UseSkillToId_Sub(struct map_session_data *sd, int skillnum, int
 		if(skillnum != SA_CASTCANCEL && !(skillnum == SO_SPELLFIST && (sd->ud.skillid == MG_FIREBOLT || sd->ud.skillid == MG_COLDBOLT || sd->ud.skillid == MG_LIGHTNINGBOLT)))
 			return;
 	} else if(DIFF_TICK(tick, sd->ud.canact_tick) < 0) {
-		clif_skill_fail(sd,skillnum,4,0,0);
+		clif_skill_fail(sd,skillnum,SKILLFAIL_INTERVAL,0,0);
 		return;
 	}
 
@@ -23934,12 +24134,12 @@ static void clif_UseSkillToId_Sub(struct map_session_data *sd, int skillnum, int
 	if(skilldb_id <= 0)
 		return;
 	if(DIFF_TICK(tick, sd->skillstatictimer[skilldb_id]) < 0) {
-		clif_skill_fail(sd,skillnum,4,0,0);
+		clif_skill_fail(sd,skillnum,SKILLFAIL_INTERVAL,0,0);
 		return;
 	}
 	// cooldownの判定
 	if(DIFF_TICK(tick, sd->skillcooldown[skilldb_id]) < 0) {
-		clif_skill_fail(sd,skillnum,4,0,0);
+		clif_skill_fail(sd,skillnum,SKILLFAIL_INTERVAL,0,0);
 		return;
 	}
 
@@ -24158,7 +24358,7 @@ static void clif_parse_UseSkillToPos(int fd, struct map_session_data *sd, int cm
 	if(sd->ud.skilltimer != -1)
 		return;
 	if(DIFF_TICK(tick, sd->ud.canact_tick) < 0) {
-		clif_skill_fail(sd,skillnum,4,0,0);
+		clif_skill_fail(sd,skillnum,SKILLFAIL_INTERVAL,0,0);
 		return;
 	}
 
@@ -24167,18 +24367,18 @@ static void clif_parse_UseSkillToPos(int fd, struct map_session_data *sd, int cm
 	if(skilldb_id <= 0)
 		return;
 	if(DIFF_TICK(tick, sd->skillstatictimer[skilldb_id]) < 0) {
-		clif_skill_fail(sd,skillnum,4,0,0);
+		clif_skill_fail(sd,skillnum,SKILLFAIL_INTERVAL,0,0);
 		return;
 	}
 	// cooldownの判定
 	if(DIFF_TICK(tick, sd->skillcooldown[skilldb_id]) < 0) {
-		clif_skill_fail(sd,skillnum,4,0,0);
+		clif_skill_fail(sd,skillnum,SKILLFAIL_INTERVAL,0,0);
 		return;
 	}
 
 	if(GETPACKETPOS(cmd,4)) {
 		if(pc_issit(sd)) {
-			clif_skill_fail(sd,skillnum,0,0,0);
+			clif_skill_fail(sd,skillnum,SKILLFAIL_FAILED,0,0);
 			return;
 		}
 		memcpy(sd->message,RFIFOP(fd,GETPACKETPOS(cmd,4)),80);
@@ -24594,10 +24794,10 @@ static void clif_parse_ResetChar(int fd,struct map_session_data *sd, int cmd)
 	    pc_isGM(sd) >= get_atcommand_level(AtCommand_ResetState)) {
 		switch(RFIFOW(fd,GETPACKETPOS(cmd,0))){
 		case 0:
-			pc_resetstate(sd);
+			pc_resetstatus(sd, 0);
 			break;
 		case 1:
-			pc_resetskill(sd, -1);
+			pc_resetskill(sd, 0);
 			break;
 		}
 	}
@@ -24764,7 +24964,7 @@ static void clif_parse_CreateParty(int fd,struct map_session_data *sd, int cmd)
 	if(battle_config.basic_skill_check == 0 || pc_checkskill(sd,NV_BASIC) >= 7 || pc_checkskill(sd,SU_BASIC_SKILL))
 		party_create(sd,RFIFOP(fd,GETPACKETPOS(cmd,0)),0,0);
 	else
-		clif_skill_fail(sd,1,0,4,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,4,0);
 
 	return;
 }
@@ -24781,7 +24981,7 @@ static void clif_parse_CreateParty2(int fd,struct map_session_data *sd, int cmd)
 	if(battle_config.basic_skill_check == 0 || pc_checkskill(sd,NV_BASIC) >= 7 || pc_checkskill(sd,SU_BASIC_SKILL))
 		party_create(sd,RFIFOP(fd,GETPACKETPOS(cmd,0)),item1,item2);
 	else
-		clif_skill_fail(sd,1,0,4,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,4,0);
 
 	return;
 }
@@ -24823,7 +25023,7 @@ static void clif_parse_ReplyPartyInvite(int fd,struct map_session_data *sd, int 
 		party_reply_invite(sd,RFIFOL(fd,GETPACKETPOS(cmd,0)),RFIFOL(fd,GETPACKETPOS(cmd,1)));
 	} else {
 		party_reply_invite(sd,RFIFOL(fd,GETPACKETPOS(cmd,0)),-1);
-		clif_skill_fail(sd,1,0,4,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,4,0);
 	}
 
 	return;
@@ -24839,7 +25039,7 @@ static void clif_parse_ReplyPartyInvite2(int fd,struct map_session_data *sd, int
 		party_reply_invite(sd,RFIFOL(fd,GETPACKETPOS(cmd,0)),RFIFOB(fd,GETPACKETPOS(cmd,1)));
 	} else {
 		party_reply_invite(sd,RFIFOL(fd,GETPACKETPOS(cmd,0)),-1);
-		clif_skill_fail(sd,1,0,8,0);
+		clif_skill_fail(sd,NV_BASIC,SKILLFAIL_LEVEL,8,0);
 	}
 
 	return;
@@ -27789,6 +27989,106 @@ static void clif_parse_MountOff(int fd, struct map_session_data *sd, int cmd)
 }
 
 /*==========================================
+ * 
+ *------------------------------------------
+ */
+static void clif_parse_CashMarketOpen(int fd, struct map_session_data *sd, int cmd)
+{
+	// TODO
+	return;
+}
+
+/*==========================================
+ * 
+ *------------------------------------------
+ */
+static void clif_parse_AdventureGuide(int fd, struct map_session_data *sd, int cmd)
+{
+	// TODO
+	return;
+}
+
+/*==========================================
+ * 
+ *------------------------------------------
+ */
+static void clif_parse_UnequipItemAll(int fd, struct map_session_data *sd, int cmd)
+{
+	int i;
+
+	nullpo_retv(sd);
+
+	if (unit_isdead(&sd->bl)) {
+		clif_clearchar_area(&sd->bl, 1);
+		return;
+	}
+
+	if (sd->sc.data[SC_BLADESTOP].timer != -1 || sd->sc.data[SC_BERSERK].timer != -1 || sd->sc.data[SC_KYOUGAKU].timer != -1 || sd->sc.data[SC_SUHIDE].timer != -1) {
+		clif_unequipitemallack(sd,1);
+		return;
+	}
+	if (sd->npc_id != 0 || sd->state.store || (sd->sc.opt1 > OPT1_NORMAL && sd->sc.opt1 != OPT1_BURNNING) || sd->state.mail_appending) {
+		clif_unequipitemallack(sd,1);
+		return;
+	}
+
+	for(i=0; i<MAX_INVENTORY; i++) {
+		if(sd->status.inventory[i].equip) {
+			pc_unequipitem(sd,i,0);
+		}
+	}
+
+	clif_unequipitemallack(sd,0);
+	return;
+}
+
+/*==========================================
+ * 
+ *------------------------------------------
+ */
+static void clif_parse_UnequipItemAll2(int fd, struct map_session_data *sd, int cmd)
+{
+	int i;
+	int pos = RFIFOL(fd,GETPACKETPOS(cmd,0));
+
+	nullpo_retv(sd);
+
+	if (unit_isdead(&sd->bl)) {
+		clif_clearchar_area(&sd->bl, 1);
+		return;
+	}
+
+	if (sd->sc.data[SC_BLADESTOP].timer != -1 || sd->sc.data[SC_BERSERK].timer != -1 || sd->sc.data[SC_KYOUGAKU].timer != -1 || sd->sc.data[SC_SUHIDE].timer != -1) {
+		clif_unequipitemallack(sd,1);
+		return;
+	}
+	if (sd->npc_id != 0 || sd->state.store || (sd->sc.opt1 > OPT1_NORMAL && sd->sc.opt1 != OPT1_BURNNING) || sd->state.mail_appending) {
+		clif_unequipitemallack(sd,1);
+		return;
+	}
+
+	for(i=0; i<MAX_INVENTORY; i++) {
+		if(sd->status.inventory[i].equip & pos) {
+			pc_unequipitem(sd,i,0);
+		}
+	}
+
+	clif_unequipitemallack(sd,0);
+	return;
+}
+
+/*==========================================
+ * 特性ステータスアップ
+ *------------------------------------------
+ */
+static void clif_parse_TStatusUp(int fd, struct map_session_data *sd, int cmd)
+{
+	pc_tstatusup(sd, RFIFOW(fd,GETPACKETPOS(cmd,0)), RFIFOW(fd,GETPACKETPOS(cmd,1)));
+
+	return;
+}
+
+/*==========================================
  * クライアントのデストラクタ
  *------------------------------------------
  */
@@ -27968,6 +28268,7 @@ static int packetdb_readdb_sub(char *line, int ln)
 		{ clif_parse_MapMove,                     "mapmove"                   },
 		{ clif_parse_ChangeDir,                   "changedir"                 },
 		{ clif_parse_Emotion,                     "emotion"                   },
+		{ clif_parse_Emotion,                     "emotion2"                  },
 		{ clif_parse_HowManyConnections,          "howmanyconnections"        },
 		{ clif_parse_ActionRequest,               "actionrequest"             },
 		{ clif_parse_Restart,                     "restart"                   },
@@ -28199,6 +28500,11 @@ static int packetdb_readdb_sub(char *line, int ln)
 		{ clif_parse_CloseLapineUpgrade,          "closelapineupgrade"        },
 		{ clif_parse_LapineUpgradeAck,            "lapineupgradeack"          },
 		{ clif_parse_MountOff,                    "mountoff"                  },
+		{ clif_parse_CashMarketOpen,              "cashmarketopen"            },
+		{ clif_parse_AdventureGuide,              "adventureguide"            },
+		{ clif_parse_UnequipItemAll,              "unequipitemall"            },
+		{ clif_parse_UnequipItemAll2,             "unequipitemall2"           },
+		{ clif_parse_TStatusUp,                   "tstatusup"                 },
 		{ NULL,                                   NULL                        },
 	};
 

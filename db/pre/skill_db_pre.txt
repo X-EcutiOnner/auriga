@@ -1,7 +1,15 @@
 //R化前skill_db.txt＠Auriga
-//id,range,hit,inf,pl,nk,max,list_num,castcancel,cast_defence_rate,inf2,maxcount,skill_type,blow_count
-518,2,6,1,0,0,10,1,no,0,0,0,weapon,2	//GS_DUST#ダスト#
-525,9,8,1,0,0,5,3:3:4:4:5,yes,0,0,0,weapon,0	//NJ_HUUMA#風魔手裏剣投げ#
-527,0,6,4,0,0,5,1,no,0,0,0,weapon,3	//NJ_TATAMIGAESHI#畳返し#
-541,0,6,4,4,0,5,1,yes,0,0,0,magic,0			//NJ_RAIGEKISAI#雷撃砕#
-544,-5,6,1,0,0,10,1,yes,0,0,0,weapon,0	//NJ_ISSEN#一閃#
+//id,range,hit,inf,pl,nk,max,list_num,castcancel,cast_defence_rate,inf2,maxcount,skill_type,blow_count,area
+47,-5,6,2,0,2,10,1,no,0,0,0,weapon,2,1,AC_SHOWER,アローシャワー
+214,0,6,4,0,1,5,1,no,0,0,0,weapon,0,1,RG_RAID,サプライズアタック
+507,9,6,1,8,0,1,1,no,0,0,0,weapon,0,0,GS_MAGICALBULLET,マジカルバレット
+518,2,6,1,0,0,10,1,no,0,0,0,weapon,2,0,GS_DUST,ダスト
+525,9,8,1,0,0,5,3:3:4:4:5,yes,0,0,0,weapon,0,1,NJ_HUUMA,風魔手裏剣投げ
+527,0,6,4,0,0,5,1,no,0,0,0,weapon,3,0,NJ_TATAMIGAESHI,畳返し
+528,-1,6,1,0,0,10,1,no,0,0,0,weapon,0,0,NJ_KASUMIKIRI,霞斬り
+530,7:9:11:13:15,6,1,0,0,5,1,no,0,0,0,weapon,0,0,NJ_KIRIKAGE,影斬り
+539,0,6,4,1,0,5,1,yes,0,0,0,magic,0,0,NJ_HYOUSYOURAKU,氷柱落し
+541,0,6,4,4,0,5,1,yes,0,0,0,magic,0,0,NJ_RAIGEKISAI,雷撃砕
+542,5:6:7:8:9,6,1,4,0,5,1,yes,0,0,0,magic,0,1,NJ_KAMAITACHI,朔風
+544,-5,6,1,0,0,10,1,yes,0,0,0,weapon,0,0,NJ_ISSEN,一閃
+8208,-5,6,2,0,2,10,1,no,0,0,0,weapon,2,1,MA_SHOWER,アローシャワー

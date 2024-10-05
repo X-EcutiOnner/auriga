@@ -318,6 +318,17 @@
 1@tnm3.gat	mapflag	noabra		dummy
 
 //============================================================
+// 悪夢のジターバグ - 1@jtb.gat
+//------------------------------------------------------------
+1@jtb.gat	mapflag	nosave			SavePoint
+1@jtb.gat	mapflag	nomemo			dummy
+1@jtb.gat	mapflag	noteleport		dummy
+1@jtb.gat	mapflag	nobranch		dummy
+1@jtb.gat	mapflag	monster_noteleport	dummy
+1@jtb.gat	mapflag	noicewall	dummy
+1@jtb.gat	mapflag	noabra		dummy
+
+//============================================================
 // ビオスの島 01 - 1@dth1.gat
 //------------------------------------------------------------
 1@dth1.gat	mapflag	nosave			SavePoint
@@ -362,6 +373,28 @@
 1@rev.gat	mapflag	noabra		dummy
 
 //============================================================
+// 魔神殿入口 - 1@eom_jp.gat
+//------------------------------------------------------------
+1@eom_jp.gat	mapflag	nosave			SavePoint
+1@eom_jp.gat	mapflag	nomemo			dummy
+1@eom_jp.gat	mapflag	noteleport		dummy
+1@eom_jp.gat	mapflag	nobranch		dummy
+1@eom_jp.gat	mapflag	monster_noteleport	dummy
+1@eom_jp.gat	mapflag	noicewall	dummy
+1@eom_jp.gat	mapflag	noabra		dummy
+
+//============================================================
+// 魔神殿 - 1@eom.gat
+//------------------------------------------------------------
+1@eom.gat	mapflag	nosave			SavePoint
+1@eom.gat	mapflag	nomemo			dummy
+1@eom.gat	mapflag	noteleport		dummy
+1@eom.gat	mapflag	nobranch		dummy
+1@eom.gat	mapflag	monster_noteleport	dummy
+1@eom.gat	mapflag	noicewall	dummy
+1@eom.gat	mapflag	noabra		dummy
+
+//============================================================
 // 中央実験室 - 1@lab.gat
 //------------------------------------------------------------
 1@lab.gat	mapflag	nosave			SavePoint
@@ -393,3 +426,58 @@
 1@mcd.gat	mapflag	monster_noteleport	dummy
 1@mcd.gat	mapflag	noicewall	dummy
 1@mcd.gat	mapflag	noabra		dummy
+
+//============================================================
+// 過去の儀式の間 - 1@mir.gat
+//------------------------------------------------------------
+1@mir.gat	mapflag	nosave			SavePoint
+1@mir.gat	mapflag	nomemo			dummy
+1@mir.gat	mapflag	noteleport		dummy
+1@mir.gat	mapflag	nobranch		dummy
+1@mir.gat	mapflag	monster_noteleport	dummy
+1@mir.gat	mapflag	noicewall	dummy
+1@mir.gat	mapflag	noabra		dummy
+
+//============================================================
+// 儀式の間 - 2@mir.gat
+//------------------------------------------------------------
+2@mir.gat	mapflag	nosave			SavePoint
+2@mir.gat	mapflag	nomemo			dummy
+2@mir.gat	mapflag	noteleport		dummy
+2@mir.gat	mapflag	nobranch		dummy
+2@mir.gat	mapflag	monster_noteleport	dummy
+2@mir.gat	mapflag	noicewall	dummy
+2@mir.gat	mapflag	noabra		dummy
+
+//============================================================
+// 空中要塞内部 - 1@sthb.gat
+//------------------------------------------------------------
+1@sthb.gat	mapflag	nosave			SavePoint
+1@sthb.gat	mapflag	nomemo			dummy
+1@sthb.gat	mapflag	noteleport		dummy
+1@sthb.gat	mapflag	nobranch		dummy
+1@sthb.gat	mapflag	monster_noteleport	dummy
+1@sthb.gat	mapflag	noicewall	dummy
+1@sthb.gat	mapflag	noabra		dummy
+
+//============================================================
+// 空中要塞秘密の部屋 - 1@sthc.gat
+//------------------------------------------------------------
+1@sthc.gat	mapflag	nosave			SavePoint
+1@sthc.gat	mapflag	nomemo			dummy
+1@sthc.gat	mapflag	noteleport		dummy
+1@sthc.gat	mapflag	nobranch		dummy
+1@sthc.gat	mapflag	monster_noteleport	dummy
+1@sthc.gat	mapflag	noicewall	dummy
+1@sthc.gat	mapflag	noabra		dummy
+
+//============================================================
+// 空中要塞最上階 - 1@sthd.gat
+//------------------------------------------------------------
+1@sthd.gat	mapflag	nosave			SavePoint
+1@sthd.gat	mapflag	nomemo			dummy
+1@sthd.gat	mapflag	noteleport		dummy
+1@sthd.gat	mapflag	nobranch		dummy
+1@sthd.gat	mapflag	monster_noteleport	dummy
+1@sthd.gat	mapflag	noicewall	dummy
+1@sthd.gat	mapflag	noabra		dummy
